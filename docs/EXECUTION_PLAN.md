@@ -124,61 +124,70 @@ Phase10 배포
 
 **왜 지금**: 인증도 UI도 결국 데이터를 저장/조회해야 의미가 있다. Supabase RLS는 DB 레벨에서 동작하므로, 인증 로직을 짜기 전에 테이블과 RLS가 먼저 존재해야 Phase2에서 "로그인한 사람만 자기 데이터를 본다"를 검증할 수 있다. 순서를 반대로 하면 RLS 없는 상태로 앱을 만들다 나중에 구멍을 막는 위험한 패턴이 된다 ([[CRITICAL_REVIEW]] D-01 재발 방지).
 
-1. **목표**: MVP(Must+Should, [[ROADMAP]] §1) 전체 테이블·RLS·Storage·시드 데이터를 완성한다.
+1. **목표**: MVP(Must+Should, [[ROADMAP]] §1) 전체 테이블·RLS·Storage·시드 데이터를 완성한다. Migration 순서·컬럼 정의는 [[DATABASE_SCHEMA]] §9(Phase1 Design Gate, 2026-08-05 확정)를 그대로 따른다.
 
 2. **선행 조건**: Phase 0 완료(Supabase 프로젝트 존재)
 
-3. **생성할 파일**:
+3. **생성할 파일** ([[DATABASE_SCHEMA]] §9 기준, 2026-08-05 동기화 — Change Log는 본 Phase 하단 참조):
    - `supabase/migrations/0001_profiles.sql`
    - `supabase/migrations/0002_draws_user_numbers.sql`
-   - `supabase/migrations/0003_dream_tables.sql` (dreams, dream_number_mappings, dream_journal_entries)
-   - `supabase/migrations/0004_fortune_results.sql`
-   - `supabase/migrations/0005_user_period_stats.sql`
+   - `supabase/migrations/0003_dreams.sql` (dreams, dream_number_mappings)
+   - `supabase/migrations/0004_dream_journal_entries.sql`
+   - `supabase/migrations/0005_fortune_results_user_period_stats.sql`
    - `supabase/migrations/0006_notifications.sql` (notifications, notification_deliveries)
    - `supabase/migrations/0007_winning_cases_stores.sql` (Should 대비 선반영)
-   - `supabase/migrations/0008_rls_policies.sql`
-   - `supabase/migrations/0009_storage_buckets.sql`
-   - `supabase/seed.sql`
+   - `supabase/migrations/0008_rls_policies.sql` (0001~0007 테이블 전체 RLS)
+   - `supabase/migrations/0009_storage_share_cards.sql` (`share_cards` 테이블 + `share-cards` Storage 버킷 + 해당 RLS를 함께 생성)
+   - `supabase/migrations/0010_seed_data.sql` (`draws`, `dreams` 시드 데이터)
    - `lib/types/database.ts` (`supabase gen types typescript` 결과 저장 위치)
 
 4. **수정할 파일**: `lib/supabase/client.ts`, `lib/supabase/server.ts` (DB 타입 제네릭 연결)
 
-5. **구현 순서** (테이블 생성 순서 — 의존관계 역행 방지):
-   1. `profiles` (auth.users 참조, 최상위 신원 테이블)
-   2. `draws` (독립 테이블)
-   3. `user_numbers` (profiles·draws 참조) — MVP 핵심
-   4. `dreams`, `dream_number_mappings` (독립 콘텐츠 테이블)
-   5. `dream_journal_entries` (profiles·dreams 참조)
-   6. `fortune_results` (profiles 참조)
-   7. `user_period_stats` (profiles 참조)
-   8. `notifications`, `notification_deliveries` (profiles 참조)
-   9. `winning_cases`, `stores`, `store_win_records` (Should, 지금 미리 생성해두어 나중에 마이그레이션 파일을 또 만드는 수고를 던다)
-   10. RLS 정책 전체 적용 ([[DATABASE_SCHEMA]] §6 표 그대로)
-   11. Storage 버킷 생성(`avatars`, `share-cards` — MVP 필요분만)
-   12. Seed 데이터: 최근 회차 `draws` 10~20건, `dreams` 5~10건(테스트용)
+5. **구현 순서** (migration 파일과 1:1 대응, 의존관계 역행 방지):
+   1. `0001` `profiles` (auth.users 참조, 최상위 신원 테이블. `birth_date NOT NULL` — [[DATABASE_SCHEMA]] §3.1)
+   2. `0002` `draws`(`round` UNIQUE NOT NULL), `user_numbers`(profiles·draws 참조) — MVP 핵심
+   3. `0003` `dreams`, `dream_number_mappings` (독립 콘텐츠 테이블, 전체공개·service_role 쓰기)
+   4. `0004` `dream_journal_entries` (profiles·dreams 참조, 완전 비공개 — RLS 성격이 0003과 정반대라 별도 파일로 분리)
+   5. `0005` `fortune_results`, `user_period_stats`(profiles 참조, `(user_id, period_type, period_key)` UNIQUE)
+   6. `0006` `notifications`, `notification_deliveries` (profiles 참조)
+   7. `0007` `winning_cases`, `stores`, `store_win_records` (Should, 지금 미리 생성해두어 나중에 마이그레이션 파일을 또 만드는 수고를 던다)
+   8. `0008` RLS 정책 전체 적용 ([[DATABASE_SCHEMA]] §6 표 그대로) — **0001~0007 전체 테이블 생성이 끝난 뒤에만 실행**(테이블이 없는 상태에서 RLS를 걸 수 없음)
+   9. `0009` `share_cards` 테이블 + `share-cards` Storage 버킷 + 그 RLS를 같은 파일에서 함께 생성(Must 기능인 카카오 공유의 데이터 기반. 실제 OG 이미지 생성 로직 구현은 이후 Phase). 테이블과 RLS를 분리하지 않는 이유는 0008 시점엔 이 테이블이 아직 없어 RLS를 걸 대상이 없기 때문
+   10. `0010` Seed 데이터: 최근 회차 `draws` 10~20건, `dreams` 5~10건(테스트용)
 
 6. **완료 기준**:
-   - Supabase 대시보드에 MVP 전체 테이블 존재
-   - 전체 테이블 RLS 활성화 확인 + SQL Editor에서 익명 키로 타인 데이터 비노출 실제 테스트 완료
-   - `avatars`, `share-cards` 버킷 생성 및 정책 적용
+   - Supabase 대시보드에 MVP 전체 테이블(profiles~share_cards) 존재
+   - 전체 테이블 RLS 활성화 확인 + SQL Editor에서 익명 키로 타인 데이터 비노출 실제 테스트 완료(`share_cards` 포함)
+   - `share-cards` 버킷 생성 및 정책 적용. `avatars`는 Phase1에서 생성하지 않는다(기능 명세 부재 — [[DATABASE_SCHEMA]] §5)
    - DB 타입 생성 및 코드 연결 완료
    - seed 데이터 존재
 
-7. **예상 작업시간**: 3~4일
+7. **예상 작업시간**: 4.5~5.5일 (기존 3~4일에서 재산정 — [[DATABASE_SCHEMA]] §9/§10 반영 및 자동화 RLS 테스트 추가에 따른 Phase1 Design Gate 산정)
 
 8. **의존성**: Phase 0
 
 9. **주의사항**:
-   - RLS를 "나중에 켜자"고 미루지 않는다 — 테이블 생성과 RLS를 같은 작업 세트로 묶는다
-   - `user_numbers.numbers` CHECK 제약(6개, 1~45, 중복없음)을 반드시 포함 ([[DATABASE_SCHEMA]] §3.3)
-   - 이미 적용한 마이그레이션 파일은 수정하지 않고 항상 새 파일을 추가한다
+   - RLS를 "나중에 켜자"고 미루지 않는다 — 테이블 생성과 RLS를 같은 작업 세트로 묶는다. 단 `share_cards`처럼 뒤에 생성되는 테이블은 그 테이블의 RLS도 같은 파일(0009)에서 함께 적용한다
+   - `user_numbers.numbers`, `dream_number_mappings.numbers` CHECK 제약(6개, 1~45, 중복없음)을 반드시 포함 ([[DATABASE_SCHEMA]] §3.3, §3.5)
+   - `draws.round`에 UNIQUE 제약을 반드시 포함한다 — `user_numbers.target_round`, `store_win_records.round`가 이를 FK로 참조한다 ([[DATABASE_SCHEMA]] §3.2)
+   - **이미 적용된(운영에 반영된) 마이그레이션 파일은 수정하지 않고 항상 새 파일을 추가한다** ([[DATABASE_SCHEMA]] §10 Schema Freeze 규칙, [[AI_ENGINEERING_CONSTITUTION]] §7·§15-9와 동일한 원칙)
+   - 마이그레이션 파일명은 `{4자리 번호}_{목적}.sql` 형식을 고정한다(예: `0001_profiles.sql`) — 번호와 목적이 파일명만으로 드러나야 한다
 
 10. **체크리스트**:
-    - [ ] 전체 테이블 생성(profiles~store_win_records)
-    - [ ] 전체 RLS 적용 및 실제 테스트
-    - [ ] Storage 버킷 생성
-    - [ ] Seed 데이터 삽입
+    - [ ] 전체 테이블 생성(profiles~share_cards, 0001~0007+0009)
+    - [ ] 전체 RLS 적용 및 실제 테스트(0008 + 0009의 share_cards RLS 포함)
+    - [ ] `share-cards` Storage 버킷 생성 (`avatars` 미생성 확인)
+    - [ ] Seed 데이터 삽입(0010)
     - [ ] DB 타입 생성 및 연결
+
+11. **DB 변경 프로세스 (Schema Freeze 이후, [[DATABASE_SCHEMA]] §10)**: Phase1 Migration(0001~0010) 적용이 완료되면 [[DATABASE_SCHEMA]]는 Schema Freeze 상태로 전환된다. 이후 이 문서의 Phase1 테이블 구조를 변경해야 할 필요가 생기면 항상 아래 순서를 따른다: **① 영향 분석 → ② Design Gate 승인(사용자) → ③ 신규 migration 생성(번호는 0011부터) → ④ [[DATABASE_SCHEMA]] 갱신.** 이 순서를 건너뛰고 기존 마이그레이션을 직접 고치거나 문서만 먼저 갱신하는 것은 금지된다.
+
+12. **Change Log (Task 1-0.5, 2026-08-05)**: 이 Phase는 원래 9개 마이그레이션(+별도 `seed.sql`)으로 계획되었으나, Phase1 Design Gate(2026-08-04)와 그 승인 결정을 거치며 아래와 같이 조정되었다.
+    - `0003_dream_tables`(dreams+dream_number_mappings+dream_journal_entries 3테이블 통합) → `0003_dreams`(dreams+dream_number_mappings)와 `0004_dream_journal_entries`로 분리. 사유: 전자는 "전체공개·service_role 쓰기", 후자는 "완전비공개·본인 쓰기"로 RLS 성격이 정반대라 한 파일에 묶는 것이 유지보수상 부적절했다.
+    - `0004_fortune_results` + `0005_user_period_stats`(별도 파일) → `0005_fortune_results_user_period_stats`(병합). 사유: 두 테이블 모두 profiles만 참조하는 단순 구조라 분리 실익이 적었다.
+    - `0009_storage_buckets`(avatars+share-cards 버킷만, 테이블 없음) → `0009_storage_share_cards`(share_cards 테이블+버킷+RLS 통합). 사유: (a) 기존 계획엔 Must 기능(카카오공유)의 근거 테이블 `share_cards` 자체가 아예 없었다 — Phase1 Design Gate에서 발견된 공백. (b) `avatars`는 [[FEATURE_SPEC]]에 근거 기능이 없어 제외했다. (c) `share_cards` 테이블과 RLS를 별도 파일로 분리하면(예: 버킷은 0009, 테이블은 0010) 0008에서 아직 존재하지 않는 테이블에 RLS를 걸어야 하는 순서 오류가 발생하므로, 테이블·버킷·RLS를 하나의 파일로 묶었다.
+    - `supabase/seed.sql`(migrations 폴더 밖 특수 파일) → `supabase/migrations/0010_seed_data.sql`(번호가 매겨진 일반 마이그레이션). 사유: [[DATABASE_SCHEMA]] §9에서 이미 이렇게 확정되었으므로 이 문서를 그에 맞춰 동기화했다. 이에 따라 부록 A 폴더 구조에서 독립적으로 표기되어 있던 `seed.sql`도 함께 정리했다(본 문서 부록 A 참조).
+    - 위 조정에 따라 Phase4·Phase9에서 이미 예약되어 있던 마이그레이션 번호(`0010_journal_summary_view.sql`, `0011_admin_flag.sql`)가 각각 `0011`, `0012`로 밀렸다(해당 Phase 섹션에 반영).
 
 ---
 
@@ -309,7 +318,7 @@ Phase10 배포
 2. **선행 조건**: Phase 1(DB), Phase 2(인증), Phase 3(공통 UI) 완료
 
 3. **생성할 파일** (DB/API/UI/페이지/컴포넌트/테스트 그룹):
-   - **DB**: (Phase1에서 테이블은 이미 생성됨) `supabase/migrations/0010_journal_summary_view.sql` — 다이어리 요약 조회용 뷰(선택, 필요 시)
+   - **DB**: (Phase1에서 테이블은 이미 생성됨) `supabase/migrations/0011_journal_summary_view.sql` — 다이어리 요약 조회용 뷰(선택, 필요 시). *번호는 Phase1이 0010까지 사용하도록 재확정되며 밀림([[EXECUTION_PLAN]] Phase1 Change Log 참조)*
    - **API**: `lib/api/journal.ts`(`getHistory()`, `getResults()`, `getSummary()` 등 — 지금은 빈 배열/널 반환), `app/api/journal/summary/route.ts`(옵션)
    - **UI(공통 컴포넌트)**: `components/journal/JournalSummaryCard.tsx`, `components/journal/NumberHistoryList.tsx`, `components/journal/ResultCard.tsx`
    - **페이지**: `app/(journal)/my/journal/page.tsx`, `.../history/page.tsx`, `.../results/page.tsx`, `.../calendar/page.tsx`(Should, 최소 골격), `.../dreams/page.tsx`(Should, 골격), `.../fortune-history/page.tsx`(Should, 골격)
@@ -550,7 +559,7 @@ Phase10 배포
    - `app/admin/lottery/draws/page.tsx`
    - `app/admin/content/dreams/page.tsx`, `app/admin/content/faqs/page.tsx`, `app/admin/content/guides/page.tsx`
    - `lib/auth/isAdmin.ts`
-   - `supabase/migrations/0011_admin_flag.sql`
+   - `supabase/migrations/0012_admin_flag.sql` (*번호는 Phase1 Change Log 반영에 따라 밀림*)
 
 4. **수정할 파일**: `proxy.ts`(`/admin/*` 보호 강화), `app/api/admin/draws/route.ts`(UI 연결)
 
@@ -661,9 +670,8 @@ Phase10 배포
 │   ├── constants/
 │   └── utils/
 ├── supabase/
-│   ├── migrations/
-│   ├── functions/       # check-winnings 등 Edge Functions
-│   └── seed.sql
+│   ├── migrations/       # seed 데이터도 0010_seed_data.sql로 여기 포함(Phase1 Change Log 참조)
+│   └── functions/       # check-winnings 등 Edge Functions
 ├── content/dreams-seed/  # 콘텐츠 원고(코드 아님)
 ├── proxy.ts
 └── .env.example
