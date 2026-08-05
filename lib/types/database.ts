@@ -39,6 +39,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      draws: {
+        Row: {
+          bonus_number: number
+          created_at: string
+          first_prize_amount: number
+          first_prize_count: number
+          id: number
+          numbers: number[]
+          round: number
+          source: string
+        }
+        Insert: {
+          bonus_number: number
+          created_at?: string
+          first_prize_amount: number
+          first_prize_count: number
+          id?: never
+          numbers: number[]
+          round: number
+          source?: string
+        }
+        Update: {
+          bonus_number?: number
+          created_at?: string
+          first_prize_amount?: number
+          first_prize_count?: number
+          id?: never
+          numbers?: number[]
+          round?: number
+          source?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           age_verified: boolean
@@ -67,7 +100,7 @@ export type Database = {
           nickname: string
           privacy_public_default?: boolean
           provider: Database["public"]["Enums"]["profile_provider"]
-          status: Database["public"]["Enums"]["profile_status"]
+          status?: Database["public"]["Enums"]["profile_status"]
           updated_at?: string
         }
         Update: {
@@ -87,17 +120,93 @@ export type Database = {
         }
         Relationships: []
       }
+      user_numbers: {
+        Row: {
+          checked_at: string | null
+          created_at: string
+          generation_method: Database["public"]["Enums"]["user_numbers_generation_method"]
+          id: number
+          is_public: boolean
+          is_purchased: boolean
+          match_count: number | null
+          memo: string | null
+          numbers: number[]
+          purchase_amount: number
+          recommendation_reason: string | null
+          related_dream_id: number | null
+          related_fortune_id: number | null
+          session_id: string | null
+          target_round: number | null
+          user_id: string | null
+          win_rank: number | null
+        }
+        Insert: {
+          checked_at?: string | null
+          created_at?: string
+          generation_method: Database["public"]["Enums"]["user_numbers_generation_method"]
+          id?: never
+          is_public?: boolean
+          is_purchased?: boolean
+          match_count?: number | null
+          memo?: string | null
+          numbers: number[]
+          purchase_amount?: number
+          recommendation_reason?: string | null
+          related_dream_id?: number | null
+          related_fortune_id?: number | null
+          session_id?: string | null
+          target_round?: number | null
+          user_id?: string | null
+          win_rank?: number | null
+        }
+        Update: {
+          checked_at?: string | null
+          created_at?: string
+          generation_method?: Database["public"]["Enums"]["user_numbers_generation_method"]
+          id?: never
+          is_public?: boolean
+          is_purchased?: boolean
+          match_count?: number | null
+          memo?: string | null
+          numbers?: number[]
+          purchase_amount?: number
+          recommendation_reason?: string | null
+          related_dream_id?: number | null
+          related_fortune_id?: number | null
+          session_id?: string | null
+          target_round?: number | null
+          user_id?: string | null
+          win_rank?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_numbers_target_round_fkey"
+            columns: ["target_round"]
+            isOneToOne: false
+            referencedRelation: "draws"
+            referencedColumns: ["round"]
+          },
+          {
+            foreignKeyName: "user_numbers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_valid_lotto_numbers: { Args: { numbers: number[] }; Returns: boolean }
     }
     Enums: {
       profile_gender: "M" | "F" | "N"
       profile_provider: "kakao" | "email"
       profile_status: "active" | "withdrawn" | "suspended"
+      user_numbers_generation_method: "auto" | "custom" | "dream" | "fortune"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -231,6 +340,7 @@ export const Constants = {
       profile_gender: ["M", "F", "N"],
       profile_provider: ["kakao", "email"],
       profile_status: ["active", "withdrawn", "suspended"],
+      user_numbers_generation_method: ["auto", "custom", "dream", "fortune"],
     },
   },
 } as const
