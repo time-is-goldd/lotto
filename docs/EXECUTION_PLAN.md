@@ -109,12 +109,12 @@ Phase10 배포
    - 폴더 구조는 지금 확정하고 이후 바꾸지 않는다
 
 10. **체크리스트**:
-    - [x] GitHub repo + 첫 커밋 (로컬 git 초기화 및 최초 커밋 완료. GitHub 원격 연결은 사용자가 직접 수행 필요 — Claude Code는 로컬 저장소까지만 구성)
+    - [x] GitHub repo + 첫 커밋 (원격 연결 및 `main` push 완료, `origin` = `time-is-goldd/lotto`)
     - [x] Next.js 로컬 실행 확인 (build 성공, 커스텀 홈 화면 확인)
     - [x] ESLint/Prettier/Vitest 동작 확인 (전부 경고 없이 통과)
-    - [ ] Supabase 프로젝트 생성 및 연결 테스트 — **사용자 액션 필요**: Supabase 대시보드에서 프로젝트 생성 후 `.env.local`에 실제 값 입력
-    - [ ] Vercel 배포 + Preview Deployment 확인 — **사용자 액션 필요**: Vercel 대시보드에서 GitHub 리포지토리 연결
-    - [ ] 카카오 개발자 앱 등록(키 확보) — **사용자 액션 필요**: 카카오 개발자 콘솔에서 직접 등록
+    - [x] Supabase 프로젝트 생성 및 연결 테스트 — `.env.local`에 실제 값 적용, REST(`/rest/v1/`)·Auth(`/auth/v1/settings`) 엔드포인트에 anon/service key 인증 확인(무인증 요청은 401)
+    - [x] Vercel 배포 + Preview Deployment 확인 — 프로젝트 연결, 환경변수 7개 등록, Production 빌드 성공 확인
+    - [x] 카카오 개발자 앱 등록(키 확보) — 앱 키 발급 및 `.env.local` 반영. Redirect URI(`/auth/callback`)는 README "환경변수 설정" 참조, 실제 로그인 연동은 Phase 2
     - [x] 폴더 구조 스캐폴딩 완료
     - [x] `.env.example` 문서화 완료
 
@@ -673,7 +673,7 @@ Phase10 배포
 
 | Phase | 시작일 | 완료일 | 비고 |
 |---|---|---|---|
-| 0 | 2026-07-31 | 코드 부분 완료 | 로컬 스캐폴딩/도구/git 완료. Supabase 프로젝트 생성·Vercel 연결·카카오 앱 등록은 사용자의 콘솔 액션 대기 중 |
+| 0 | 2026-07-31 | 2026-08-05 | 로컬 스캐폴딩/도구/git 완료. GitHub·Supabase·Vercel·카카오 인프라 연결 및 검증 완료(Task 0-2) |
 | 1 | | | |
 | 2 | | | |
 | 3 | | | |
