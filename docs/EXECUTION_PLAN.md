@@ -138,14 +138,14 @@ Phase10 배포
    - `supabase/migrations/0007_winning_cases_stores.sql` (Should 대비 선반영)
    - `supabase/migrations/0008_rls_policies.sql` (0001~0007 테이블 전체 RLS)
    - `supabase/migrations/0009_storage_share_cards.sql` (`share_cards` 테이블 + `share-cards` Storage 버킷 + 해당 RLS를 함께 생성)
-   - `supabase/migrations/0010_seed_data.sql` (`draws`, `dreams` 시드 데이터)
+   - `supabase/migrations/0010_seed_data.sql` (`draws` 시드 데이터, `dreams` 20~30건, `dream_number_mappings` — [[DATABASE_SCHEMA]] §9 v2.3 정정, Task 1-0.6)
    - `lib/types/database.ts` (`supabase gen types typescript` 결과 저장 위치)
 
 4. **수정할 파일**: `lib/supabase/client.ts`, `lib/supabase/server.ts` (DB 타입 제네릭 연결)
 
 5. **구현 순서** (migration 파일과 1:1 대응, 의존관계 역행 방지):
    1. `0001` `profiles` (auth.users 참조, 최상위 신원 테이블. `birth_date NOT NULL` — [[DATABASE_SCHEMA]] §3.1)
-   2. `0002` `draws`(`round` UNIQUE NOT NULL), `user_numbers`(profiles·draws 참조) — MVP 핵심
+   2. `0002` `draws`(`round` UNIQUE NOT NULL, `numbers`/`bonus_number` CHECK — [[DATABASE_SCHEMA]] §3.2), `user_numbers`(profiles·draws 참조. `related_dream_id`/`related_fortune_id`는 FK 제약 없이 컬럼만 정의 — [[DATABASE_SCHEMA]] §3.0·§3.3) — MVP 핵심. **착수 전**: `0001` 적용 이후 확정된 `profiles.status DEFAULT 'active'`를 반영하는 `ALTER TABLE`을 이 Task에서 별도 마이그레이션으로 함께 처리한다([[DATABASE_SCHEMA]] §11)
    3. `0003` `dreams`, `dream_number_mappings` (독립 콘텐츠 테이블, 전체공개·service_role 쓰기)
    4. `0004` `dream_journal_entries` (profiles·dreams 참조, 완전 비공개 — RLS 성격이 0003과 정반대라 별도 파일로 분리)
    5. `0005` `fortune_results`, `user_period_stats`(profiles 참조, `(user_id, period_type, period_key)` UNIQUE)
@@ -153,7 +153,7 @@ Phase10 배포
    7. `0007` `winning_cases`, `stores`, `store_win_records` (Should, 지금 미리 생성해두어 나중에 마이그레이션 파일을 또 만드는 수고를 던다)
    8. `0008` RLS 정책 전체 적용 ([[DATABASE_SCHEMA]] §6 표 그대로) — **0001~0007 전체 테이블 생성이 끝난 뒤에만 실행**(테이블이 없는 상태에서 RLS를 걸 수 없음)
    9. `0009` `share_cards` 테이블 + `share-cards` Storage 버킷 + 그 RLS를 같은 파일에서 함께 생성(Must 기능인 카카오 공유의 데이터 기반. 실제 OG 이미지 생성 로직 구현은 이후 Phase). 테이블과 RLS를 분리하지 않는 이유는 0008 시점엔 이 테이블이 아직 없어 RLS를 걸 대상이 없기 때문
-   10. `0010` Seed 데이터: 최근 회차 `draws` 10~20건, `dreams` 5~10건(테스트용)
+   10. `0010` Seed 데이터: 최근 회차 `draws` 10~20건, `dreams` 20~30건([[ROADMAP]] §2 Phase0 산출물 요구사항과 일치화, Task 1-0.6), `dream_number_mappings`(시드된 dreams 각각에 대응)
 
 6. **완료 기준**:
    - Supabase 대시보드에 MVP 전체 테이블(profiles~share_cards) 존재
@@ -189,6 +189,12 @@ Phase10 배포
     - `0009_storage_buckets`(avatars+share-cards 버킷만, 테이블 없음) → `0009_storage_share_cards`(share_cards 테이블+버킷+RLS 통합). 사유: (a) 기존 계획엔 Must 기능(카카오공유)의 근거 테이블 `share_cards` 자체가 아예 없었다 — Phase1 Design Gate에서 발견된 공백. (b) `avatars`는 [[FEATURE_SPEC]]에 근거 기능이 없어 제외했다. (c) `share_cards` 테이블과 RLS를 별도 파일로 분리하면(예: 버킷은 0009, 테이블은 0010) 0008에서 아직 존재하지 않는 테이블에 RLS를 걸어야 하는 순서 오류가 발생하므로, 테이블·버킷·RLS를 하나의 파일로 묶었다.
     - `supabase/seed.sql`(migrations 폴더 밖 특수 파일) → `supabase/migrations/0010_seed_data.sql`(번호가 매겨진 일반 마이그레이션). 사유: [[DATABASE_SCHEMA]] §9에서 이미 이렇게 확정되었으므로 이 문서를 그에 맞춰 동기화했다. 이에 따라 부록 A 폴더 구조에서 독립적으로 표기되어 있던 `seed.sql`도 함께 정리했다(본 문서 부록 A 참조).
     - 위 조정에 따라 Phase4·Phase9에서 이미 예약되어 있던 마이그레이션 번호(`0010_journal_summary_view.sql`, `0011_admin_flag.sql`)가 각각 `0011`, `0012`로 밀렸다(해당 Phase 섹션에 반영).
+
+13. **Change Log (Task 1-0.6, 2026-08-05 — `0002` 착수 전 마지막 Design Gate)**: `0001_profiles.sql` 적용 이후 발견된 잔여 설계 공백을 전부 해소했다. 상세 근거와 체크리스트는 [[DATABASE_SCHEMA]] §11 참조.
+    - `user_numbers.related_dream_id`/`related_fortune_id` FK 제약 제거 — `0002`(user_numbers)가 `0003`(dreams)·`0005`(fortune_results)보다 먼저 생성되어 발생하던 마이그레이션 순서 역행을 해소.
+    - `draws.numbers`/`bonus_number` CHECK 제약 추가, `fortune_results` 컬럼 전체 정의, `profiles.status DEFAULT 'active'` 확정(단, `0001`은 이미 적용되어 있어 `0002` 작업 시 별도 `ALTER TABLE`로 반영).
+    - `public_profiles`/`public_number_feed` 뷰는 Phase1에서 만들지 않기로 확정(소비 기능이 Phase3~4로 연기됨).
+    - `dreams` seed 수량을 5~10건 → 20~30건으로 정정([[ROADMAP]] §2 요구사항과 일치화), `dream_number_mappings` seed 추가.
 
 ---
 

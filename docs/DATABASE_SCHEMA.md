@@ -5,6 +5,8 @@
 > **v2.1 (2026-08-05, Phase 1 Design Gate 반영)**: `profiles.birth_date` NOT NULL 전환(19세 검증 근거 일원화), 회원탈퇴 정책 A안 확정(§7), `draws`/`dreams`/`dream_number_mappings`/`winning_cases` 컬럼 정의 보완, `share_cards` 신규 정의(§3.18), `user_period_stats` UNIQUE 제약 추가, RLS 정책표에 DELETE 열 추가(§6), Storage에서 `avatars` 제외(§5), Migration 순서(§9) 및 Schema Freeze 규칙(§10) 신설. 근거는 Phase 1 Design Gate 검토 기록 참조.
 >
 > **v2.2 (2026-08-05, Phase 1 진행 방향 결정사항 반영)**: Schema 관리 방식을 Supabase CLI + Migration 기반으로 명문화, Dashboard SQL Editor는 긴급 확인 용도로만 한정(§10-0). Edge Function/Cron 인프라는 MVP에서 보류하고 Phase5 이후 도입(상세 아키텍처 결정은 [[IMPLEMENTATION_PLAN]] 참조). Free Tier 기준 비용 전략을 [[IMPLEMENTATION_PLAN]] §10에 신설.
+>
+> **v2.3 (2026-08-05, Task 1-0.6 — `0002` 착수 전 마지막 Design Gate)**: 공통 컬럼/FK 규칙 신설(§3.0), `profiles.status` DEFAULT 확정, `draws` CHECK 제약 추가, `user_numbers.related_dream_id`/`related_fortune_id` FK 제거(마이그레이션 순서 역행 해소), `fortune_results` 컬럼 전체 정의, `public_profiles`/`public_number_feed` 뷰 Phase1 보류 확정, Seed 수량 정정(§9), `0002` 착수 전 최종 검증 체크리스트(§11) 신설. 이 개정으로 이전 Design Gate에서 남아있던 미해결 항목이 모두 해소되었다.
 
 ---
 
@@ -43,35 +45,47 @@ stores ──< store_win_records ── draws   (로또 명당)
 
 ## 3. 핵심 테이블 정의
 
+### 3.0 공통 컬럼/제약 규칙 (신규, Task 1-0.6 확정)
+
+Phase1 테이블 전체에 적용되는 공통 규칙. 개별 테이블 정의에서 매번 반복 설명하지 않고 이 규칙을 참조한다.
+
+**`created_at`/`updated_at`**: 모든 `created_at`은 `TIMESTAMP NOT NULL DEFAULT now()`. `updated_at`이 있는 테이블은 `TIMESTAMP NOT NULL DEFAULT now()`로 만들고, `public.set_updated_at()`(0001에서 최초 정의된 공용 트리거 함수)을 재사용하는 `BEFORE UPDATE` 트리거를 건다 — 테이블마다 트리거 함수를 새로 만들지 않는다([[AI_ENGINEERING_CONSTITUTION]] §3 "중복 코드 작성 금지"). 어떤 테이블이 `updated_at`을 갖는지는 각 테이블 컬럼 표에 명시된 대로만 따른다(예: `user_numbers`는 `updated_at`이 없다 — 임의로 추가하지 않는다).
+
+**FK `ON DELETE` 기본 원칙**:
+1. 참조 대상이 설계상 실제로 삭제되지 않는 테이블(`profiles` — §7 A안, `draws` — 영구 공개 기록)을 가리키는 FK는 별도 지정 없이 Postgres 기본값(`NO ACTION`)을 쓴다. 이 테이블들은 삭제 대신 상태 전환/익명화로 처리되므로, 예외적으로 삭제가 시도되면 조용히 전파되지 않고 오류로 막히는 것이 설계 의도와 일치한다.
+2. 부모 행이 없으면 존재 의미가 없는 자식 행(`dream_number_mappings.dream_id → dreams`, `notification_deliveries.notification_id → notifications`, `store_win_records.store_id → stores`)은 `CASCADE`.
+3. 콘텐츠(관리자가 실제로 편집·삭제할 수 있는 대상)를 가리키되, 그 콘텐츠가 사라져도 사용자의 개인 기록 자체는 보존되어야 하는 선택적 참조(`user_numbers.related_dream_id`/`related_fortune_id`)는 **FK 제약을 걸지 않는다** — §3.3 참조.
+
 ### 3.1 `profiles` (구 `users`)
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
-| id | UUID PK, FK → auth.users.id | |
+| id | UUID PK, FK → auth.users.id | ON DELETE는 §3.0 원칙 1(NO ACTION)을 따른다 — `auth.users`는 §7 A안에 따라 실제로 삭제되지 않으므로, 예외적으로 삭제가 시도되면 오류로 막히는 편이 정책 의도와 일치한다(CASCADE 채택 안 함 — 채택 시 탈퇴 정책이 의도한 익명화 경로를 우회해 프로필이 조용히 사라질 수 있음). SET NULL은 PK 컬럼이라 애초에 적용 불가 |
 | provider | ENUM('kakao','email') | 가입 경로 |
 | nickname | VARCHAR(30) | 커뮤니티/실시간로그 노출용 |
 | birth_date | DATE NOT NULL | **가입 시 필수 입력(v2.1 변경)**. 만 19세 미만 이용제한 검증(§9.3 [[FEATURE_SPEC]], Must·법적요건)의 판정 근거이며, 운세 기능(§3.2 [[FEATURE_SPEC]])에도 동일 값을 재사용한다 — 두 목적이 하나의 값을 공유하므로 필수 컬럼으로 확정(Phase1 Design Gate) |
 | gender | ENUM('M','F','N') NULL | 선택입력 유지(MVP 운세 로직이 아직 사용하지 않음) |
 | birth_time | TIME NULL | |
-| age_verified | BOOLEAN DEFAULT false | 19세 이상 확인 여부 ([[CRITICAL_REVIEW]] P-08) |
-| marketing_opt_in | BOOLEAN DEFAULT false | |
-| privacy_public_default | BOOLEAN DEFAULT true | 실시간 로그 공개 기본값 |
+| age_verified | BOOLEAN NOT NULL DEFAULT false | 19세 이상 확인 여부 ([[CRITICAL_REVIEW]] P-08) |
+| marketing_opt_in | BOOLEAN NOT NULL DEFAULT false | |
+| privacy_public_default | BOOLEAN NOT NULL DEFAULT true | 실시간 로그 공개 기본값 |
 | best_win_rank_ever | SMALLINT NULL | 다이어리 프로필 요약용 비정규화 캐시 |
-| status | ENUM('active','withdrawn','suspended') | |
-| created_at, updated_at | TIMESTAMP | |
+| status | ENUM('active','withdrawn','suspended') NOT NULL DEFAULT 'active' | **(v2.3 확정, Task 1-0.6)** 신규 프로필은 항상 `active`로 시작하고 이후 UPDATE로만 전환되므로, 매 INSERT마다 애플리케이션이 명시적으로 값을 넣게 하는 것보다 DB DEFAULT로 강제하는 편이 단순하고 유지보수 부담이 적다(1인 개발 원칙, [[MASTER_PRD]] §3). **주의**: `0001_profiles.sql`은 이미 적용되었고 이 DEFAULT 없이 생성되었다 — Schema Freeze 규칙(§10)에 따라 `0001`을 수정하지 않고, `0002` 작업 시작 전 별도 `ALTER TABLE`로 추가한다 |
+| created_at | TIMESTAMP NOT NULL DEFAULT now() | §3.0 공통 규칙 |
+| updated_at | TIMESTAMP NOT NULL DEFAULT now() | §3.0 공통 규칙, `public.set_updated_at()` 트리거로 갱신 |
 
-**RLS**: `SELECT/UPDATE`는 `auth.uid() = id`인 본인만 허용. 닉네임 등 공개 노출용 필드는 `SECURITY DEFINER` 뷰(`public_profiles`)로 별도 분리해 커뮤니티/실시간로그가 이 뷰만 참조하도록 한다 (생년월일 등 민감정보가 실수로 노출되는 경로 자체를 차단).
+**RLS**: `SELECT/UPDATE`는 `auth.uid() = id`인 본인만 허용. **`public_profiles` 뷰는 Phase1에서 만들지 않는다(v2.3, Task 1-0.6 — 보류 확정)** — 이 뷰를 실제로 참조하는 기능(커뮤니티, 실시간 로그)이 모두 Phase3~4로 연기되어 있어 MVP에는 소비자가 없다. 해당 기능을 만드는 Phase에서 뷰의 정확한 `SELECT` 컬럼 목록과 함께 신설한다. 그때까지 `profiles`의 다른 회원 정보는 어떤 경로로도 공개되지 않는다(본인만 SELECT).
 
 ### 3.2 `draws` — 회차/추첨 결과 (v2.1: 컬럼/제약 명시화)
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | id | BIGINT PK | |
 | round | INT UNIQUE NOT NULL | 회차 번호. `user_numbers.target_round`, `store_win_records.round`가 이 값을 FK로 참조하므로 UNIQUE 필수(Phase1 Design Gate — 기존 문서는 PK/UNIQUE 구조가 불명확했음) |
-| numbers | INT[6] | 당첨번호 6개 |
-| bonus_number | INT | 보너스번호 |
-| first_prize_amount | BIGINT | 1등 당첨금 |
-| first_prize_count | INT | 1등 당첨 인원 |
-| source | VARCHAR(50) | 데이터 출처 |
-| created_at | TIMESTAMP | |
+| numbers | INT[6] NOT NULL CHECK(중복없이 1~45) | 당첨번호 6개. **(v2.3 확정, Task 1-0.6)** `user_numbers.numbers`와 동일한 CHECK를 적용한다 — 당첨 매칭 로직 전체가 이 값의 무결성에 의존하므로 사용자 입력용 컬럼보다 느슨하게 둘 이유가 없다 |
+| bonus_number | INT NOT NULL CHECK(1 ~ 45 범위) | 보너스번호 |
+| first_prize_amount | BIGINT NOT NULL | 1등 당첨금. DEFAULT 없음 — 관리자가 회차 입력 시 항상 실제 값을 명시하도록 강제(자리표시자 0이 실제 데이터처럼 남는 것을 방지) |
+| first_prize_count | INT NOT NULL | 1등 당첨 인원. 위와 동일한 이유로 DEFAULT 없음 |
+| source | VARCHAR(50) NOT NULL DEFAULT 'manual' | 데이터 출처. MVP는 관리자 수동 입력만 존재하므로([[ROADMAP]] §11 자동화 로드맵) 기본값을 `manual`로 둔다 — Phase8에서 공공데이터 API 자동수집이 추가되면 그 경로에서 `api` 등의 값을 명시적으로 넣는다 |
+| created_at | TIMESTAMP NOT NULL DEFAULT now() | §3.0 공통 규칙. `draws`는 `updated_at`을 두지 않는다(공식 기록은 사실상 append-only) |
 
 **RLS**: 전체 공개 `SELECT` 허용(공개 데이터), `INSERT/UPDATE`는 service_role 전용(§6 — `admins` 테이블이 Phase9에야 생성되므로 Phase1~8은 client 대상 관리자 정책을 만들지 않는다).
 
@@ -79,26 +93,26 @@ stores ──< store_win_records ── draws   (로또 명당)
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | id | BIGINT PK | |
-| user_id | UUID FK → profiles.id NULL | 비회원 생성 시 NULL |
+| user_id | UUID FK → profiles.id NULL | 비회원 생성 시 NULL. ON DELETE는 §3.0 원칙 1(NO ACTION) |
 | session_id | VARCHAR(64) NULL | 비회원 추적용 |
-| numbers | INT[6] CHECK(중복없이 1~45) | 생성된 번호 |
-| generation_method | ENUM('auto','custom','dream','fortune') | |
-| related_dream_id | BIGINT FK NULL | |
-| related_fortune_id | BIGINT FK NULL | |
+| numbers | INT[6] NOT NULL CHECK(중복없이 1~45) | 생성된 번호 |
+| generation_method | ENUM('auto','custom','dream','fortune') NOT NULL | |
+| related_dream_id | BIGINT NULL, `dreams.id` 참조 (FK 제약 없음) | **(v2.3 확정, Task 1-0.6)** 이전에는 `dreams`를 FK로 참조했으나, `dreams`는 `0003`에서 생성되고 `user_numbers`는 `0002`에서 생성되어 마이그레이션 순서가 역행하는 문제가 있었다. §3.0 원칙 3에 따라 강한 FK 제약을 걸지 않고 애플리케이션 레벨에서 검증하는 참조로 전환한다(`share_cards.content_ref_id`와 동일 패턴) — 부수 효과로 "관리자가 꿈 콘텐츠를 지우면 사용자의 저장된 번호 기록까지 함께 삭제되는" CASCADE 오발동 위험도 함께 제거된다 |
+| related_fortune_id | BIGINT NULL, `fortune_results.id` 참조 (FK 제약 없음) | 위와 동일한 이유(`fortune_results`는 `0005`에서 생성) |
 | **recommendation_reason** | TEXT NULL | **(신규)** 생성 당시 추천 이유 스냅샷 (예: "돼지꿈 연동 생성"). 원본 콘텐츠가 나중에 바뀌어도 기록이 변하지 않도록 생성 시점 텍스트를 그대로 저장(비정규화) |
-| **is_purchased** | BOOLEAN DEFAULT false | **(신규)** 실제 구매 여부 — 자진 신고, 자동검증 불가 |
-| **purchase_amount** | INT DEFAULT 0 | **(신규)** 구매 금액 — 자진 신고 |
+| **is_purchased** | BOOLEAN NOT NULL DEFAULT false | **(신규)** 실제 구매 여부 — 자진 신고, 자동검증 불가 |
+| **purchase_amount** | INT NOT NULL DEFAULT 0 | **(신규)** 구매 금액 — 자진 신고 |
 | **memo** | TEXT NULL | **(신규)** 행운 메모 (사용자가 자유롭게 남기는 짧은 기록) |
-| target_round | INT FK(draws.round) NULL | |
-| is_public | BOOLEAN DEFAULT true | |
+| target_round | INT NULL FK(draws.round) | ON DELETE는 §3.0 원칙 1(NO ACTION) |
+| is_public | BOOLEAN NOT NULL DEFAULT true | |
 | match_count | SMALLINT NULL | |
 | win_rank | SMALLINT NULL | |
 | checked_at | TIMESTAMP NULL | |
-| created_at | TIMESTAMP | |
+| created_at | TIMESTAMP NOT NULL DEFAULT now() | §3.0 공통 규칙. `user_numbers`는 `updated_at`을 두지 않는다(`match_count`/`win_rank`/`checked_at` 갱신 시점은 `checked_at` 자체가 이미 기록하므로 별도 컬럼 불필요) |
 
 **CHECK 제약** (신규, [[CRITICAL_REVIEW]] D-06): `array_length(numbers,1) = 6`, 각 원소 1~45 범위, 배열 내 중복 없음 — DB 트리거 또는 CHECK 제약으로 강제.
 
-**RLS**: `SELECT/INSERT/UPDATE`는 `auth.uid() = user_id`인 본인만. 단, `is_public = true`인 레코드의 `numbers`, `created_at`, (마스킹된) 닉네임만 노출하는 별도 뷰(`public_number_feed`)를 만들어 실시간 로그 기능이 이 뷰만 조회하도록 한다.
+**RLS**: `SELECT/INSERT/UPDATE`는 `auth.uid() = user_id`인 본인만. **`public_number_feed` 뷰는 Phase1에서 만들지 않는다(v2.3, Task 1-0.6 — 보류 확정)** — 이 뷰가 지원하는 "실시간 번호 생성 로그" 기능 자체가 [[ROADMAP]]에서 Could(Phase3 이후 재검토)로 분류되어 있어 MVP에는 소비자가 없다. 해당 기능을 실제로 만드는 시점에 `numbers`/`created_at`/마스킹된 닉네임의 정확한 `SELECT` 표현과 함께 신설한다. 그때까지 `is_public` 컬럼 값은 저장만 되고 실제로 공개 경로에 쓰이지 않는다.
 
 ### 3.4 `dreams` — 꿈해몽 사전 (v2.1: 컬럼 정의 신설)
 기존 문서는 "v1.0과 동일"로만 참조했으나, 저장소 git 이력을 확인한 결과 v1.0 문서가 실제로 존재한 적이 없어(Phase1 Design Gate 확인) 아래와 같이 신규로 정의한다.
@@ -136,8 +150,27 @@ stores ──< store_win_records ── draws   (로또 명당)
 
 **RLS**: 본인만 CRUD 가능 (`auth.uid() = user_id`). 이 데이터는 절대 공개되지 않는다 — 사전(`dreams`)과 명확히 분리된 완전 사적 기록.
 
-### 3.7 `fortune_results` — AI 운세 결과 (v1.0과 거의 동일)
-컬럼 구성은 유지하되, MVP(Should)에서는 `overall_fortune`, `luck_score`, `recommended_numbers`, `share_id`만 필수로 채우고 나머지(행동지침/피해야할행동/행운색 등)는 Phase 2에서 채우는 것을 허용하도록 NULL 허용 범위를 넓힌다 ([[FEATURE_SPEC]] AI 운세 간소화 참조).
+### 3.7 `fortune_results` — AI 운세 결과 (v2.3: 컬럼 정의 신설, Task 1-0.6)
+기존 문서는 "v1.0과 거의 동일"로만 참조했으나, v1.0 문서가 저장소에 존재한 적이 없어(Phase1 Design Gate 확인) 아래와 같이 [[FEATURE_SPEC]] §3.2·§3.3 기준으로 신규 정의한다.
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| id | BIGINT PK | |
+| user_id | UUID NULL, `profiles.id` 참조 (FK 제약, ON DELETE는 §3.0 원칙 1) | [[FEATURE_SPEC]] §3.3 "비로그인도 이용 가능"에 따라 비회원은 NULL(`user_numbers.user_id`와 동일한 패턴) |
+| input_birth_date | DATE NOT NULL | 운세 계산에 사용한 생년월일. 비회원도 이용 가능하므로 `profiles.birth_date`를 참조하지 않고 매 요청마다 독립적으로 입력받아 저장한다 |
+| zodiac_sign | VARCHAR(10) NULL | 계산된 띠(12지). MVP 산출 로직(생년월일→띠, 단순 산술)의 결과 캐시 |
+| overall_fortune | TEXT NOT NULL | 종합운세. MVP 필수 3항목 중 하나([[FEATURE_SPEC]] §3.2) |
+| luck_score | SMALLINT NOT NULL | 행운지수. MVP 필수 |
+| recommended_numbers | INT[6] NOT NULL CHECK(중복없이 1~45) | 추천 번호. MVP 필수. `user_numbers`/`draws`와 동일한 CHECK 적용 |
+| today_energy | TEXT NULL | 오늘의 기운. Phase2 이후 채움([[FEATURE_SPEC]] §3.2 나머지 7항목) |
+| money_luck | TEXT NULL | 금전운. Phase2 이후 |
+| action_guide | TEXT NULL | 행동지침. Phase2 이후 |
+| things_to_avoid | TEXT NULL | 피해야 할 행동. Phase2 이후 |
+| lucky_color | VARCHAR(20) NULL | 행운색. Phase2 이후 |
+| lucky_direction | VARCHAR(10) NULL | 행운방향. Phase2 이후 |
+| lucky_time | VARCHAR(20) NULL | 행운시간. Phase2 이후 |
+| share_id | VARCHAR(20) UNIQUE NOT NULL | 공유 링크(`/share/[shareId]`) 및 비회원 익명 조회 식별자. MVP 필수 |
+| created_at | TIMESTAMP NOT NULL DEFAULT now() | §3.0 공통 규칙. `updated_at` 없음(운세 결과는 생성 후 수정되지 않는 스냅샷) |
 
 **RLS**: 본인 또는 `share_id`로 조회하는 익명 접근(공유 링크)만 허용.
 
@@ -338,8 +371,8 @@ v1.0 구조 유지하되, 향후 입점(Phase 6) 대비 `products`에 컬럼 추
 
 | 테이블 | SELECT | INSERT | UPDATE | DELETE | 비고 |
 |---|---|---|---|---|---|
-| profiles | 본인만(`auth.uid()=id`), 공개용은 `public_profiles` 뷰 | 본인만(가입 트리거) | 본인만 | **불허** | 탈퇴는 UPDATE로 익명화(§7 A안). DELETE 정책 없음=기본 차단 |
-| user_numbers | 본인만, 공개 피드는 `public_number_feed` 뷰 | 본인만(`auth.uid()=user_id`) | 본인만(memo/purchase_amount 등) | **본인만** | 사용자가 잘못 생성한 기록을 지울 수 있어야 하므로 본인 DELETE 허용(v2.1 결정 — 기존 Design Gate에서 미정이던 항목) |
+| profiles | 본인만(`auth.uid()=id`) | 본인만(가입 트리거) | 본인만 | **불허** | 탈퇴는 UPDATE로 익명화(§7 A안). DELETE 정책 없음=기본 차단. `public_profiles` 뷰는 Phase1에 만들지 않음(v2.3, §3.1) |
+| user_numbers | 본인만 | 본인만(`auth.uid()=user_id`) | 본인만(memo/purchase_amount 등) | **본인만** | 사용자가 잘못 생성한 기록을 지울 수 있어야 하므로 본인 DELETE 허용(v2.1 결정). `public_number_feed` 뷰는 Phase1에 만들지 않음(v2.3, §3.3) |
 | dream_journal_entries | 본인만 | 본인만 | 본인만 | **본인만** | 완전 비공개 개인 기록. 사용자가 자유롭게 삭제 가능해야 함(v2.1 결정) |
 | fortune_results | 본인 또는 `share_id` 익명 조회 | 본인 또는 서버 | 서버만 | 불허 | |
 | user_period_stats | 본인만 | service_role 전용(배치) | service_role 전용(배치) | 불허 | (user_id, period_type, period_key) UNIQUE |
@@ -382,7 +415,8 @@ v1.0 구조 유지하되, 향후 입점(Phase 6) 대비 `products`에 컬럼 추
 - `community_posts(category, created_at)` — 카테고리 목록 조회용, 신규 명시
 - `dreams` 검색을 위한 `pg_trgm` GIN 인덱스(`keyword`, `interpretation`) — 신규, [[INFORMATION_ARCHITECTURE]] 검색 기능 지원
 - 실시간 로그는 Redis 대신 **Supabase Realtime(Postgres Change Data Capture)**을 `public_number_feed` 뷰에 연결해 구현한다 — 별도 캐시 인프라 불필요 ([[IMPLEMENTATION_PLAN]] 개정 참조, [[MASTER_PRD]] 원칙 4 "유지보수 비용 최소화").
-- **FK 컬럼 기본 인덱스** (v2.1 추가, [[AI_ENGINEERING_CONSTITUTION]] §7 "외래키 컬럼에는 기본적으로 인덱스를 건다"): `user_numbers(related_dream_id)`, `user_numbers(related_fortune_id)`, `dream_journal_entries(user_id)`, `dream_journal_entries(linked_dream_id)`, `fortune_results(user_id)`, `fortune_results(share_id)`(UNIQUE — 익명 공유 조회 진입점), `notifications(user_id)`, `store_win_records(store_id)`, `store_win_records(round)`, `share_cards(share_id)`(UNIQUE), `share_cards(user_id)`.
+- **FK 컬럼 기본 인덱스** (v2.1 추가, [[AI_ENGINEERING_CONSTITUTION]] §7 "외래키 컬럼에는 기본적으로 인덱스를 건다"): `dream_journal_entries(user_id)`, `dream_journal_entries(linked_dream_id)`, `fortune_results(user_id)`, `fortune_results(share_id)`(UNIQUE — 익명 공유 조회 진입점), `notifications(user_id)`, `store_win_records(store_id)`, `store_win_records(round)`, `share_cards(share_id)`(UNIQUE), `share_cards(user_id)`.
+- **참조용 컬럼 인덱스** (v2.3, FK 제약은 없지만 조회 패턴상 인덱스는 필요, §3.0 원칙 3): `user_numbers(related_dream_id)`, `user_numbers(related_fortune_id)`.
 
 ---
 
@@ -401,7 +435,7 @@ v1.0 구조 유지하되, 향후 입점(Phase 6) 대비 `products`에 컬럼 추
 | 0007 | `winning_cases_stores.sql` | `winning_cases`, `stores`, `store_win_records` |
 | 0008 | `rls_policies.sql` | 0001~0007 테이블 전체 RLS 정책(§6) |
 | 0009 | `storage_share_cards.sql` | `share_cards` 테이블 + `share-cards` Storage 버킷 + 해당 RLS. 테이블과 버킷이 하나의 기능 단위로 강하게 결합되어 있어 같은 파일로 묶음 |
-| 0010 | `seed_data.sql` | `draws` 최근 회차 10~20건, `dreams` 5~10건(테스트용) |
+| 0010 | `seed_data.sql` | `draws` 최근 회차 10~20건, `dreams` **20~30건**(v2.3 정정, Task 1-0.6 — 이전 "5~10건(테스트용)"이 [[ROADMAP]] §2 Phase0 산출물 요구사항 "최소 꿈해몽 콘텐츠 20~30건"과 불일치했음), `dream_number_mappings`(v2.3 추가 — 시드된 `dreams` 각각에 대응하는 추천번호가 없으면 "꿈→추천번호" 기능이 로컬에서 동작하지 않음) |
 
 **0003/0004 분리 근거**: 기존 계획은 `dreams`/`dream_number_mappings`/`dream_journal_entries`를 한 파일로 묶었으나(구 `0003_dream_tables`), 전자는 "전체 공개, service_role만 쓰기"이고 후자는 "완전 비공개, 본인만 쓰기"로 RLS 성격이 정반대라 분리하는 것이 유지보수 관점에서 더 명확하다(Phase1 Design Gate 판단).
 
@@ -416,3 +450,24 @@ v1.0 구조 유지하되, 향후 입점(Phase 6) 대비 `products`에 컬럼 추
 2. **Schema 변경은 항상 새 마이그레이션 파일로 표현한다.** 이 문서를 먼저 고치고 마이그레이션을 나중에 맞추는 순서가 아니라, 마이그레이션과 이 문서를 같은 작업 단위에서 함께 갱신한다([[AI_ENGINEERING_CONSTITUTION]] §4 Phase E).
 3. **컬럼 삭제·타입 변경 등 비가역적이거나 기존 데이터에 영향을 주는 변경은 Impact Analysis 없이 진행하지 않는다.** Impact Analysis에는 최소한 "어떤 기능이 이 컬럼을 읽는가", "기존 데이터는 어떻게 처리되는가"를 포함하고, 사용자 승인 후에만 실행한다.
 4. **Phase1 Migration(0001~0010) 적용이 완료되는 시점부터 이 문서의 Phase1 테이블 구조는 Schema Freeze 상태로 전환한다.** Freeze 상태에서는 여기 정의된 구조를 변경 없이 유지하며, Phase2 이후 새로운 요구사항은 신규 마이그레이션(0011~)으로만 확장한다. Freeze를 해제(=기존 테이블 구조 자체를 변경)하려면 사용자의 명시적 승인이 필요하다.
+
+---
+
+## 11. `0002` 착수 전 최종 검증 (Task 1-0.6, 2026-08-05)
+
+이전 Design Gate에서 "나중에 결정"으로 남겨두었던 항목을 모두 여기서 확정했다. 더 이상 미해결 항목은 없다.
+
+| 항목 | 상태 | 처리 내용 |
+|---|---|---|
+| `profiles.status` DEFAULT | **해결** | `DEFAULT 'active'` 확정(§3.1) |
+| `created_at`/`updated_at` 정책 | **해결** | §3.0에 프로젝트 공통 규칙으로 명문화 |
+| `profiles.id` ON DELETE | **해결** | `NO ACTION`(기본값) 확정, 근거 §3.1·§3.0 |
+| `draws` CHECK 제약 | **해결** | `numbers`/`bonus_number`에 CHECK 추가(§3.2) |
+| `user_numbers` FK 순서 역행 | **해결** | `related_dream_id`/`related_fortune_id`의 FK 제약을 제거(§3.0 원칙 3, §3.3) — 마이그레이션 순서 문제와 CASCADE 오발동 위험을 동시에 제거 |
+| `fortune_results` 컬럼 정의 | **해결** | 전체 컬럼 신규 정의(§3.7) |
+| `public_profiles`/`public_number_feed` 뷰 | **보류** | 소비하는 기능(커뮤니티·실시간로그)이 모두 Phase3~4로 연기되어 있어 MVP에는 필요 없음. 해당 기능 구현 시점에 정의(§3.1·§3.3에 명시) |
+| Seed 수량/대상 | **해결** | `dreams` 20~30건으로 정정, `dream_number_mappings` 시드 추가(§9) |
+
+**Migration 순서 재검증 결과**: `related_dream_id`/`related_fortune_id`의 FK 제약을 제거함에 따라, `0001`~`0010` 전 구간에서 뒤에 생성되는 테이블을 먼저 참조하는 순방향 참조(forward reference)가 더 이상 없다. RLS(`0008`)는 그 대상인 `0001`~`0007` 테이블이 모두 생성된 뒤에 실행되고, `share_cards`의 RLS는 자신의 테이블 생성과 같은 파일(`0009`)에 있어 문제없다. 순환 참조 없음.
+
+**`0002` 착수 전 필수 조치 (SQL 아님, 실행 항목 안내)**: `profiles.status DEFAULT 'active'`는 이미 적용된 `0001_profiles.sql`에는 반영되어 있지 않다(Schema Freeze 규칙 §10-1에 따라 `0001`을 직접 고치지 않았다). `0002` 작업을 시작할 때, `0002_draws_user_numbers.sql`과는 별개로 `ALTER TABLE public.profiles ALTER COLUMN status SET DEFAULT 'active'`를 반영하는 신규 마이그레이션을 함께 준비해야 한다(파일 분리 여부는 `0002` 구현 Task에서 결정).
