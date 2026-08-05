@@ -3,6 +3,8 @@
 > v2.0. Supabase(PostgreSQL + Auth + Storage + Realtime)를 전제로 전면 개정한다. [[CRITICAL_REVIEW]] D-01~D-09 지적사항(RLS 부재, auth 미통합, Storage 미설계, 테이블 불일치, 다중채널 알림 구조 미비)을 모두 반영했다. [[MASTER_PRD]] §3 "1인 개발 원칙"에 따라 별도 인프라(Redis 등) 의존을 최소화하고 Supabase 기본 기능을 최대한 활용하는 방향으로 설계를 조정했다.
 >
 > **v2.1 (2026-08-05, Phase 1 Design Gate 반영)**: `profiles.birth_date` NOT NULL 전환(19세 검증 근거 일원화), 회원탈퇴 정책 A안 확정(§7), `draws`/`dreams`/`dream_number_mappings`/`winning_cases` 컬럼 정의 보완, `share_cards` 신규 정의(§3.18), `user_period_stats` UNIQUE 제약 추가, RLS 정책표에 DELETE 열 추가(§6), Storage에서 `avatars` 제외(§5), Migration 순서(§9) 및 Schema Freeze 규칙(§10) 신설. 근거는 Phase 1 Design Gate 검토 기록 참조.
+>
+> **v2.2 (2026-08-05, Phase 1 진행 방향 결정사항 반영)**: Schema 관리 방식을 Supabase CLI + Migration 기반으로 명문화, Dashboard SQL Editor는 긴급 확인 용도로만 한정(§10-0). Edge Function/Cron 인프라는 MVP에서 보류하고 Phase5 이후 도입(상세 아키텍처 결정은 [[IMPLEMENTATION_PLAN]] 참조). Free Tier 기준 비용 전략을 [[IMPLEMENTATION_PLAN]] §10에 신설.
 
 ---
 
@@ -409,6 +411,7 @@ v1.0 구조 유지하되, 향후 입점(Phase 6) 대비 `products`에 컬럼 추
 
 ## 10. Schema Freeze 규칙 (신규, Phase1 Design Gate 확정)
 
+0. **관리 방식**: 모든 schema 변경은 **Supabase CLI로 migration 파일을 생성한 뒤 적용**하는 것을 원칙으로 한다. Supabase Dashboard의 SQL Editor에서 직접 스키마를 수정하는 것은 **긴급 상황 확인(디버깅) 용도로만** 허용하며, 확인이 끝나면 동일한 변경 내용을 반드시 새 migration 파일로 재현해 커밋한다 — SQL Editor에서의 변경만 남고 migration 파일로 기록되지 않는 상태(migration 이력과 실제 DB 상태의 불일치)를 만들지 않는다(신규 원칙, 2026-08-05).
 1. **Migration 작성이 시작된 이후, 이미 적용(운영에 반영)된 마이그레이션 파일은 절대 수정하지 않는다.** 컬럼/제약을 바꿔야 하면 반드시 새 마이그레이션 파일을 추가한다([[AI_ENGINEERING_CONSTITUTION]] §7, §15-9와 동일한 원칙).
 2. **Schema 변경은 항상 새 마이그레이션 파일로 표현한다.** 이 문서를 먼저 고치고 마이그레이션을 나중에 맞추는 순서가 아니라, 마이그레이션과 이 문서를 같은 작업 단위에서 함께 갱신한다([[AI_ENGINEERING_CONSTITUTION]] §4 Phase E).
 3. **컬럼 삭제·타입 변경 등 비가역적이거나 기존 데이터에 영향을 주는 변경은 Impact Analysis 없이 진행하지 않는다.** Impact Analysis에는 최소한 "어떤 기능이 이 컬럼을 읽는가", "기존 데이터는 어떻게 처리되는가"를 포함하고, 사용자 승인 후에만 실행한다.

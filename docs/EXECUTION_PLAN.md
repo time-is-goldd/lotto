@@ -172,6 +172,7 @@ Phase10 배포
    - `draws.round`에 UNIQUE 제약을 반드시 포함한다 — `user_numbers.target_round`, `store_win_records.round`가 이를 FK로 참조한다 ([[DATABASE_SCHEMA]] §3.2)
    - **이미 적용된(운영에 반영된) 마이그레이션 파일은 수정하지 않고 항상 새 파일을 추가한다** ([[DATABASE_SCHEMA]] §10 Schema Freeze 규칙, [[AI_ENGINEERING_CONSTITUTION]] §7·§15-9와 동일한 원칙)
    - 마이그레이션 파일명은 `{4자리 번호}_{목적}.sql` 형식을 고정한다(예: `0001_profiles.sql`) — 번호와 목적이 파일명만으로 드러나야 한다
+   - **모든 스키마 변경은 Supabase CLI로 migration 파일을 생성한 뒤 적용한다.** Dashboard SQL Editor에서 직접 스키마를 고치는 것은 긴급 상황 확인 용도로만 쓰고, 확인 후에는 동일한 변경을 반드시 migration 파일로 재현해 커밋한다(신규 원칙, 2026-08-05 — [[DATABASE_SCHEMA]] §10)
 
 10. **체크리스트**:
     - [ ] 전체 테이블 생성(profiles~share_cards, 0001~0007+0009)
@@ -414,9 +415,8 @@ Phase10 배포
 
 2. **선행 조건**: Phase 5 완료(대조할 `user_numbers` 존재)
 
-3. **생성할 파일**:
-   - `app/api/admin/draws/route.ts`(POST — 회차 결과 입력, 임시로 관리자 화면 없이 직접 호출 테스트 가능)
-   - `supabase/functions/check-winnings/index.ts`(Edge Function — 배치)
+3. **생성할 파일** (v2.1, 2026-08-05: Edge Function 제거 — 하단 "Edge Function/Cron 보류 원칙" 참조):
+   - `app/api/admin/draws/route.ts`(POST — 회차 결과 입력 + 대조 배치를 **같은 요청 안에서 동기 처리**. MVP는 관리자가 결과를 입력하는 시점에 바로 전수 대조까지 끝낸다)
    - `lib/logic/matchNumbers.ts`(순수 함수), `lib/logic/matchNumbers.test.ts`
    - `lib/api/notifications.ts`
    - `components/journal/WinResultBanner.tsx`
@@ -425,8 +425,8 @@ Phase10 배포
 
 5. **구현 순서**:
    1. `matchNumbers()` 구현 — **경계값 테스트 최우선**(5개+보너스=2등, 5개=3등 등 [[FEATURE_SPEC]] §1.3)
-   2. 관리자 회차 입력 API(화면은 Phase9에서)
-   3. Edge Function 배치: 회차 `user_numbers` 전수 조회 → 대조 → `match_count`/`win_rank` UPDATE
+   2. 관리자 회차 입력 API(화면은 Phase9에서) — `app/api/admin/draws/route.ts` POST 핸들러 안에서 회차 저장 직후 대조 로직을 그대로 호출(별도 Edge Function 없이 동일 요청 내 동기 처리)
+   3. 대조 로직: 회차 `user_numbers` 전수 조회 → 대조 → `match_count`/`win_rank` UPDATE
    4. 당첨자 `notifications` INSERT
    5. 다이어리 당첨확인 화면 실데이터 렌더링 + 당첨 축하 연출
    6. 사이트 내 알림(헤더 뱃지) 연동
@@ -443,6 +443,7 @@ Phase10 배포
 9. **주의사항**:
    - 등수 판정 로직은 서비스 신뢰도와 직결 — 경계값마다 테스트 케이스 필수
    - 비회원(`user_id NULL`) 번호는 대조 대상에서 제외([[FEATURE_SPEC]] §1.3)
+   - MVP 사용자 규모에서는 관리자 요청 안에서 동기 처리해도 응답 지연이 문제되지 않는다. 대조 대상 `user_numbers`가 크게 늘어 응답 시간이 부담되면, 그때 Edge Function+pg_cron 비동기 배치로 전환한다([[IMPLEMENTATION_PLAN]] §4.3 Edge Function/Cron 도입 원칙 참조) — 지금 미리 만들지 않는다
 
 10. **체크리스트**:
     - [ ] matchNumbers 경계값 테스트 전체 통과
@@ -670,8 +671,8 @@ Phase10 배포
 │   ├── constants/
 │   └── utils/
 ├── supabase/
-│   ├── migrations/       # seed 데이터도 0010_seed_data.sql로 여기 포함(Phase1 Change Log 참조)
-│   └── functions/       # check-winnings 등 Edge Functions
+│   └── migrations/       # seed 데이터도 0010_seed_data.sql로 여기 포함(Phase1 Change Log 참조)
+│                         # functions/(Edge Functions)는 MVP에서 생성하지 않음 — [[IMPLEMENTATION_PLAN]] Edge Function/Cron 도입 원칙, Phase5+ 자동화 필요 시점에 추가
 ├── content/dreams-seed/  # 콘텐츠 원고(코드 아님)
 ├── proxy.ts
 └── .env.example
