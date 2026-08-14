@@ -7,6 +7,8 @@
 > **v2.2 (2026-08-05, Phase 1 진행 방향 결정사항 반영)**: Schema 관리 방식을 Supabase CLI + Migration 기반으로 명문화, Dashboard SQL Editor는 긴급 확인 용도로만 한정(§10-0). Edge Function/Cron 인프라는 MVP에서 보류하고 Phase5 이후 도입(상세 아키텍처 결정은 [[IMPLEMENTATION_PLAN]] 참조). Free Tier 기준 비용 전략을 [[IMPLEMENTATION_PLAN]] §10에 신설.
 >
 > **v2.3 (2026-08-05, Task 1-0.6 — `0002` 착수 전 마지막 Design Gate)**: 공통 컬럼/FK 규칙 신설(§3.0), `profiles.status` DEFAULT 확정, `draws` CHECK 제약 추가, `user_numbers.related_dream_id`/`related_fortune_id` FK 제거(마이그레이션 순서 역행 해소), `fortune_results` 컬럼 전체 정의, `public_profiles`/`public_number_feed` 뷰 Phase1 보류 확정, Seed 수량 정정(§9), `0002` 착수 전 최종 검증 체크리스트(§11) 신설. 이 개정으로 이전 Design Gate에서 남아있던 미해결 항목이 모두 해소되었다.
+>
+> **v2.4 (2026-08-05, `0003` 완료 후 문서 정합성 점검)**: `0002`/`0003` 적용 과정에서 실제로 생성된 `0013_profiles_status_default.sql`을 Migration 순서표(§9)에 반영, RLS 활성화 시점(테이블 생성 시 vs `0008` 일괄 적용)을 §6에 명시적으로 교차참조해 [[AI_ENGINEERING_CONSTITUTION]]·[[EXECUTION_PLAN]]과 동일한 결론이 나오도록 정렬했다. 스키마 자체(컬럼/제약/인덱스)는 변경하지 않았다 — 이미 적용된 `0001`/`0002`/`0003`/`0013`은 Schema Freeze 규칙(§10)에 따라 그대로 유지된다.
 
 ---
 
@@ -365,6 +367,8 @@ v1.0 구조 유지하되, 향후 입점(Phase 6) 대비 `products`에 컬럼 추
 
 ## 6. RLS 정책 요약표 (v2.1: SELECT/INSERT/UPDATE/DELETE 4열로 확장, [[CRITICAL_REVIEW]] D-01 전면 해결)
 
+**RLS 활성화 시점(v2.4 명시)**: 이 표는 각 테이블이 "최종적으로" 가져야 할 RLS 정책을 정의하며, 실제로 언제 활성화되는지는 §9 Migration 순서를 따른다 — `0001`~`0007`은 테이블 생성만 담당하고 이 구간 테이블의 RLS는 `0008_rls_policies.sql`에서 일괄 적용한다. `0009`(`share_cards`)부터는 테이블 생성과 RLS를 같은 파일에서 함께 적용한다. 이 문서·[[AI_ENGINEERING_CONSTITUTION]] §7·[[EXECUTION_PLAN]] Phase1은 동일한 원칙을 공유한다.
+
 **관리자 정책에 대한 공통 원칙**: `admins` 테이블/관리자 플래그는 [[EXECUTION_PLAN]] Phase 9에야 생성된다. 따라서 Phase 1~8 동안 "관리자만" 권한은 **client 대상 RLS 정책을 아예 만들지 않는 방식(정책 없음 = 기본 차단)** 으로 구현하고, 실제 관리자 쓰기는 서버 API route가 `service_role`로 수행한다([[IMPLEMENTATION_PLAN]] §5와 동일). Phase 9에서 관리자 플래그가 생기더라도, 클라이언트가 직접 RLS를 통과해 쓰는 대신 "서버 API route + service_role" 패턴을 그대로 유지할 것을 권장한다(보안 표면 최소화).
 
 ### Phase 1 대상 테이블
@@ -422,7 +426,7 @@ v1.0 구조 유지하되, 향후 입점(Phase 6) 대비 `products`에 컬럼 추
 
 ## 9. Migration 순서 — Phase 1 (확정, 2026-08-05 Phase1 Design Gate)
 
-승인된 결정사항에 따라 아래 순서로 확정한다. [[EXECUTION_PLAN]] Phase1 §3의 기존 파일 목록(0001~0009 + `seed.sql`)과 파일 분할 방식이 일부 달라지므로, [[EXECUTION_PLAN]]도 이 순서에 맞춰 별도 Task에서 갱신해야 한다.
+승인된 결정사항에 따라 아래 순서로 확정한다. [[EXECUTION_PLAN]] Phase1 §3의 파일 목록은 Task 1-0.5(2026-08-05)에서 이 순서에 맞춰 이미 동기화되었다([[EXECUTION_PLAN]] Phase1 Change Log 참조) — 더 이상 별도 갱신이 필요한 상태가 아니다.
 
 | 순번 | 파일명 | 포함 테이블/작업 |
 |---|---|---|
@@ -436,6 +440,7 @@ v1.0 구조 유지하되, 향후 입점(Phase 6) 대비 `products`에 컬럼 추
 | 0008 | `rls_policies.sql` | 0001~0007 테이블 전체 RLS 정책(§6) |
 | 0009 | `storage_share_cards.sql` | `share_cards` 테이블 + `share-cards` Storage 버킷 + 해당 RLS. 테이블과 버킷이 하나의 기능 단위로 강하게 결합되어 있어 같은 파일로 묶음 |
 | 0010 | `seed_data.sql` | `draws` 최근 회차 10~20건, `dreams` **20~30건**(v2.3 정정, Task 1-0.6 — 이전 "5~10건(테스트용)"이 [[ROADMAP]] §2 Phase0 산출물 요구사항 "최소 꿈해몽 콘텐츠 20~30건"과 불일치했음), `dream_number_mappings`(v2.3 추가 — 시드된 `dreams` 각각에 대응하는 추천번호가 없으면 "꿈→추천번호" 기능이 로컬에서 동작하지 않음) |
+| 0013 | `profiles_status_default.sql` | `profiles.status`에 `DEFAULT 'active'` 추가(§3.1, §11). **번호가 0001a 등이 아니라 0013인 이유**: `0001`은 이미 적용되어 Schema Freeze(§10-1)상 직접 수정 불가하고, Supabase CLI가 순수 숫자 접두사만 인식해 알파벳 접미사를 쓸 수 없으며, `0003`~`0012`는 이미 다른 테이블/기능 이름으로 확정돼 있어 재번호 매기기가 불가능했다 — 당시 예약되지 않은 가장 빠른 번호(Phase9의 `0012_admin_flag.sql` 다음)를 사용했다(상세 근거는 `0013_profiles_status_default.sql` 파일 헤더 주석 참조). `profiles`가 `0001`에서 이미 생성되어 있으므로 실행 순서상 `0002`~`0010`보다 뒤에 적용돼도 문제없다 |
 
 **0003/0004 분리 근거**: 기존 계획은 `dreams`/`dream_number_mappings`/`dream_journal_entries`를 한 파일로 묶었으나(구 `0003_dream_tables`), 전자는 "전체 공개, service_role만 쓰기"이고 후자는 "완전 비공개, 본인만 쓰기"로 RLS 성격이 정반대라 분리하는 것이 유지보수 관점에서 더 명확하다(Phase1 Design Gate 판단).
 

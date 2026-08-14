@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-lotto",
+      "schedule": "30 12 * * 6"
+    }
+  ]
+}

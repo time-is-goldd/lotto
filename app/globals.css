@@ -1,17 +1,66 @@
 @import "tailwindcss";
 
-/* [[DESIGN_SYSTEM]] §8: 초기 버전은 다크모드를 지원하지 않는다. 화이트 기반 고정 배경. */
-:root {
-  --background: #ffffff;
-  --foreground: #1a1a1a;
+/*
+ * Design Tokens — docs/DESIGN_SYSTEM.md 반영 (Phase3-1, docs/DESIGN_TOKEN_IMPLEMENTATION_REPORT.md).
+ * 값은 문서에 정의된 그대로이며 임의로 바꾸지 않았다. Tailwind v4 CSS-first 방식(@theme)만
+ * 쓰고 tailwind.config.ts는 만들지 않는다 — 이전에 있던 --background/--foreground(문서에
+ * 근거 없는 Phase0 placeholder, 어디서도 참조되지 않음)를 문서의 정식 토큰명으로 교체했다.
+ */
+@theme {
+  /* Color — docs/DESIGN_SYSTEM.md §1.1 브랜드 컬러 */
+  --color-primary: #1b4dff;
+  --color-primary-dark: #123399;
+  --color-accent-gold: #ffb800;
+  --color-kakao: #fee500;
+
+  /* Color — docs/DESIGN_SYSTEM.md §1.2 기본 팔레트 */
+  --color-bg-base: #ffffff;
+  --color-bg-subtle: #f7f8fa;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #5b5f66;
+  --color-border: #e4e6eb;
+  --color-success: #1aa260;
+  --color-danger: #e0353b;
+
+  /* Typography — docs/DESIGN_SYSTEM.md §2. font-weight/line-height는 Tailwind 기본
+     --font-weight-bold(700)/--font-weight-normal(400)·--leading-* 유틸리티로 이미 충분해
+     별도 토큰을 추가하지 않았다 — "행간 1.6배"는 전역 규칙이라 아래 body에서 한 번만 적용한다. */
+  --text-display: 32px;
+  --text-h1: 28px;
+  --text-h2: 22px;
+  --text-body-lg: 18px;
+  --text-body: 16px;
+  --text-caption: 14px;
+  --text-button: 20px;
+
+  /* docs/DESIGN_SYSTEM.md은 폰트 패밀리 자체를 지정하지 않는다 — docs/UI_UX_GUIDELINE.md §2
+     "시스템 기본 산세리프"와 DESIGN_SYSTEM.md §2 "한글 가독성 확보"를 근거로 Tailwind v4 기본
+     --font-sans 스택 앞에 한글 시스템 폰트를 추가했다(새 값 발명이 아니라 기본값의 한글 확장).
+     웹폰트(next/font 등)는 도입하지 않았다. */
+  --font-sans:
+    "Apple SD Gothic Neo", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+
+  /* Radius — docs/DESIGN_SYSTEM.md §4.1(Button)/§4.3(Card)/§4.5(Input) */
+  --radius-button: 12px;
+  --radius-card: 16px;
+  --radius-input: 8px;
+
+  /* Shadow — docs/DESIGN_SYSTEM.md §4.3(Card)만 값이 정의돼 있다. "Floating element"용
+     그림자는 문서에 없어 임의로 만들지 않았다(docs/DESIGN_TOKEN_IMPLEMENTATION_REPORT.md
+     "변경하지 않은 항목" 참조). */
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06);
+
+  /* Layout — docs/DESIGN_SYSTEM.md §7 "데스크톱: 최대 콘텐츠 폭 1200px 중앙 정렬". Container
+     뿐 아니라 이후 Header/Footer(Phase3-3)도 같은 폭으로 정렬해야 해서 매직넘버로 각 컴포넌트에
+     흩어두지 않고 토큰화했다(docs/PHASE3_LAYOUT_IMPLEMENTATION_REPORT.md 참조). */
+  --max-width-content: 1200px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-}
-
+/* docs/DESIGN_SYSTEM.md §8: 초기 버전은 다크모드를 지원하지 않는다. 화이트 기반 고정 배경. */
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  line-height: 1.6;
 }
+

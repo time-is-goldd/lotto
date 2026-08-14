@@ -3,6 +3,8 @@
 > v2.0. [[MASTER_PRD]] §3 원칙(유지보수 비용 최소화, 확장성보다 현실성)에 따라 별도 인프라(Redis, 전용 워커 서버) 의존을 제거하고 Supabase 관리형 기능을 최대한 활용하는 구조로 전면 개정한다. **본 문서 자체는 설계 산출물이며, 실제 구현은 15개 설계 문서 승인 후 착수한다.**
 >
 > **v2.1 (2026-08-05, Phase 1 진행 방향 결정사항 반영)**: MVP 단계에서 Supabase Edge Functions + pg_cron 도입을 보류하고, 동일 기능(당첨확인 배치·통계 갱신·알림 발송)을 Next.js API Route 내 동기 처리로 구현하도록 아키텍처를 조정했다(§1, §2, §4.3, §4.4, §5). 도입 시점은 Phase 5 이후 실제 자동화 요구가 발생할 때로 명시했다. Free Tier 기준 비용 전략을 §10에 신설했다.
+>
+> **v2.2 (2026-08-05, `0003` 완료 후 문서 정합성 점검)**: §5 RLS 활성화 원칙, §8 구현 순서에 Phase1 `0001`~`0007`(테이블 생성)→`0008`(RLS 일괄 적용) 예외를 명시적으로 반영해 [[DATABASE_SCHEMA]]·[[AI_ENGINEERING_CONSTITUTION]]과 동일한 결론이 나오도록 정렬했다. 아키텍처/스키마 자체는 변경하지 않았다.
 
 ---
 
@@ -79,7 +81,7 @@ PostgreSQL Full-Text Search(`pg_trgm`)로 MVP~중기까지 충분 ([[DATABASE_SC
 
 ## 5. 보안 설계 원칙 (개정 — RLS 중심으로 재정렬)
 
-- **모든 테이블 RLS 활성화가 기본값**이다 ([[DATABASE_SCHEMA]] §6 정책표를 그대로 구현). 예외를 두는 테이블(공개 콘텐츠)만 명시적으로 전체 SELECT를 허용한다.
+- **모든 테이블 RLS 활성화가 기본값**이다 ([[DATABASE_SCHEMA]] §6 정책표를 그대로 구현). 예외를 두는 테이블(공개 콘텐츠)만 명시적으로 전체 SELECT를 허용한다. Phase1 마이그레이션에서는 `0001`~`0007`이 테이블 생성을, `0008`이 그 테이블들의 RLS 일괄 적용을 담당한다([[DATABASE_SCHEMA]] §6·§9, [[AI_ENGINEERING_CONSTITUTION]] §7의 Phase1 한정 예외). `0009`부터는 테이블 생성과 RLS 적용을 같은 파일에서 함께 수행하는 일반 원칙으로 돌아간다.
 - 관리자 전용 작업(회차 입력, 콘텐츠 발행 등)은 `service_role` 키를 사용하는 서버 사이드(**Next.js API Route** — MVP는 Edge Function을 쓰지 않는다, §4.3)에서만 수행하고, 클라이언트에 `service_role` 키를 절대 노출하지 않는다.
 - 개인정보(생년월일 등)는 `profiles` 테이블에만 저장하고, 공개 노출용 데이터는 별도 뷰(`public_profiles`)로 분리해 실수로 인한 노출 경로를 원천 차단한다 ([[DATABASE_SCHEMA]] §3.1).
 - 커뮤니티 스팸/XSS 방지: 입력값 sanitize, Rate limiting(Next.js 미들웨어/API Route 레벨).
@@ -96,7 +98,7 @@ LCP 2.5초, INP 200ms, CLS 0.1, 번호생성 응답 1초 이내.
 ## 8. 단계별 구현 순서 (개정 — [[ROADMAP]] Phase와 정합)
 
 1. Supabase 프로젝트 셋업 + 카카오×Auth PoC (Phase 0)
-2. RLS 정책 전체 적용 + 핵심 스키마 구축 ([[DATABASE_SCHEMA]])
+2. 핵심 스키마 구축(`0001`~`0007`) + RLS 정책 전체 적용(`0008`) ([[DATABASE_SCHEMA]] §9)
 3. 번호생성 + 로그인 + 다이어리 최소버전(히스토리+당첨확인) (Phase 1 Must)
 4. 이메일/웹푸시 알림, 꿈해몽/운세 최소버전 (Phase 1 Should)
 5. 다이어리 고도화(캘린더/통계/연말리포트) (Phase 3)
