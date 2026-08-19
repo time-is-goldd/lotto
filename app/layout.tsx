@@ -6,7 +6,7 @@ import Main from "@/components/layout/Main";
 import PageShell from "@/components/layout/PageShell";
 import BottomNavigation from "@/components/navigation/BottomNavigation";
 import { SITE_NAME } from "@/lib/constants";
-import { getEnv } from "@/lib/utils/env";
+import { getSiteUrl } from "@/lib/utils/env";
 
 import "./globals.css";
 
@@ -16,7 +16,7 @@ const SITE_DESCRIPTION = "행운을 기록하고, 관리하고, 공유하는 플
 // SITE_URL, .env.example)을 그대로 재사용한다 — SEO 전용 새 환경변수를 추가하지 않는다.
 // metadataBase가 있어야 canonical/Open Graph의 상대 경로가 절대 URL로 해석된다(Phase8-0
 // 감사가 확인한 "이미 존재하는 convention 우선 사용" 원칙).
-const metadataBase = new URL(getEnv("NEXT_PUBLIC_SITE_URL"));
+const metadataBase = new URL(getSiteUrl());
 
 // title template: 페이지가 자신의 title을 문자열로만 지정하면(예: app/dream/page.tsx의
 // "꿈해몽") Next.js가 이 template에 꽂아 "꿈해몽 | Luck Platform"으로 렌더링한다. 페이지가
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
 
 // Phase8-4: 사이트 전역 WebSite JSON-LD. name/url은 이 파일이 이미 계산해 둔 SITE_NAME/
 // metadataBase를 그대로 재사용한다(§3 "새 상수/유틸을 만들지 않는다") — metadataBase가
-// 이미 URL 인스턴스이므로 getEnv("NEXT_PUBLIC_SITE_URL")을 다시 호출하지 않고 .href만
+// 이미 URL 인스턴스이므로 getSiteUrl()을 다시 호출하지 않고 .href만
 // 꺼내 쓴다. 이 레이아웃은 모든 페이지가 공유하므로 여기 한 번만 두면 페이지마다 반복
 // 추가할 필요가 없다(app/dream/[keyword]/page.tsx의 BreadcrumbList와 달리 페이지별 데이터가
 // 필요 없어 RootLayout 밖으로 함수를 분리할 이유도 없다).

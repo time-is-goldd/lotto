@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import DreamHubContent from "@/components/dream/DreamHubContent";
 import DreamSituationCard from "@/components/dream/DreamSituationCard";
 import Container from "@/components/layout/Container";
 import Badge from "@/components/ui/Badge";
@@ -12,7 +13,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { getDreamSituations } from "@/lib/api/dreamSituations";
 import { getDreamByKeyword, getDreamNumbers } from "@/lib/api/dreams";
 import { SITE_NAME } from "@/lib/constants";
-import { getEnv } from "@/lib/utils/env";
+import { getSiteUrl } from "@/lib/utils/env";
 
 interface DreamDetailPageProps {
   params: Promise<{ keyword: string }>;
@@ -57,7 +58,16 @@ export async function generateMetadata({ params }: DreamDetailPageProps): Promis
   }
 
   const title = `${dream.keyword} 해몽`;
-  const description = dream.interpretation.slice(0, 100);
+  // Phase10-9: interpretation이 "## 소제목" 섹션 마크업을 포함할 수 있어(DreamHubContent.tsx
+  // 파서와 동일한 규칙), description에는 그 마크업 기호가 그대로 노출되면 안 된다("## 뱀꿈은..."
+  // 형태로 검색결과에 뜨는 것을 방지) — "## " 줄을 제외한 첫 문단만 골라 slice한다. 레거시
+  // 25개 Parent(헤딩 없는 한 문단)는 지금과 동일하게 그 문단 앞 100자를 그대로 쓴다.
+  const firstParagraph =
+    dream.interpretation
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.length > 0 && !line.startsWith("## ")) ?? dream.interpretation;
+  const description = firstParagraph.slice(0, 100);
   // 기존 DreamCard.tsx(components/dream/DreamCard.tsx:18)가 이미 쓰는 것과 동일한 인코딩
   // 규칙 — 이 페이지로 들어오는 실제 링크와 canonical/OG url이 항상 같은 형태를 갖는다.
   const path = `/dream/${encodeURIComponent(dream.keyword)}`;
@@ -90,11 +100,11 @@ export async function generateMetadata({ params }: DreamDetailPageProps): Promis
 // Phase8-3: 홈/꿈해몽 페이지가 실제 UI에서 이미 쓰고 있는 문구를 그대로 재사용한다 — "홈"은
 // components/navigation/BottomNavigation.tsx의 label, "꿈해몽"은 components/navigation/
 // GlobalNav.tsx의 label과 동일하다(§7 "재사용", 새 문구를 짓지 않음). 절대 URL은
-// app/layout.tsx의 metadataBase와 동일한 환경변수(getEnv("NEXT_PUBLIC_SITE_URL"))로 만든다 —
+// app/layout.tsx의 metadataBase와 동일한 환경변수(getSiteUrl())로 만든다 —
 // 새 상수/유틸을 추가하지 않는다. 마지막 항목의 경로는 generateMetadata()의 path와 동일하게
 // components/dream/DreamCard.tsx가 쓰는 encodeURIComponent() 규칙을 그대로 따른다.
 function buildBreadcrumbJsonLd(dream: { keyword: string }) {
-  const siteUrl = getEnv("NEXT_PUBLIC_SITE_URL");
+  const siteUrl = getSiteUrl();
   const path = `/dream/${encodeURIComponent(dream.keyword)}`;
 
   const jsonLd = {
@@ -153,11 +163,11 @@ export default async function DreamDetailPage({ params }: DreamDetailPageProps) 
       </div>
 
       <Card>
-        {/* 해몽 본문은 관리자가 자유롭게 작성한 긴 텍스트라 줄바꿈이 포함될 수 있고, 모바일
-            375px 폭에서도 가로 overflow 없이 자연스럽게 줄바꿈돼야 한다 — Phase4의 긴 텍스트
-            안전 패턴(app/my/journal/dreams/page.tsx)을 그대로 재사용했다. */}
-        <CardContent className="whitespace-pre-wrap break-words">
-          {dream.interpretation}
+        {/* Phase10-9 §11/§12: interpretation이 "## 소제목" 섹션을 담고 있으면 DreamHubContent가
+            실제 <h2>로 나눠 렌더링하고("이 꿈은 보통 어떻게 해석할까?" 등 Parent hub 구조), 없으면
+            기존처럼 한 문단으로 보여준다(하위 호환 — 레거시 25개 Parent는 지금과 동일하게 보인다). */}
+        <CardContent>
+          <DreamHubContent interpretation={dream.interpretation} />
         </CardContent>
       </Card>
 

@@ -34,7 +34,7 @@ describe("buildSaveRequestPayload", () => {
 
   it("includes generationMethod and relatedDreamId when dreamContext is given", () => {
     const numbers = [1, 2, 3, 4, 5, 6];
-    const payload = buildSaveRequestPayload(numbers, { id: 5, keyword: "돼지꿈" });
+    const payload = buildSaveRequestPayload(numbers, { id: 5, keyword: "돼지꿈", dreamNumbers: [] });
 
     expect(payload).toEqual({ numbers, generationMethod: "dream", relatedDreamId: 5 });
   });

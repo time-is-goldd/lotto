@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 
 import { getGuideEntries } from "@/lib/api/content";
 import type { Database } from "@/lib/types/database";
-import { getEnv } from "@/lib/utils/env";
+import { getEnv, getSiteUrl } from "@/lib/utils/env";
 
 // docs/PHASE7_DREAM_BROWSE_UI_REPORT.md §9(발견된 문제 2)가 이미 확인한 사실: lib/api/dreams.ts는
 // lib/supabase/server.ts(next/headers의 cookies())를 쓰고, cookies()가 호출되는 렌더 경로는
@@ -24,7 +24,7 @@ function createPublicClient() {
 // 이 값이 실제로 매 요청 DB 조회를 막아주는지는 실측으로 확인했다(보고서 §14).
 export const revalidate = 3600;
 
-const SITE_URL = getEnv("NEXT_PUBLIC_SITE_URL");
+const SITE_URL = getSiteUrl();
 
 // docs/SITEMAP.md §4 P0 목록 중 실제로 구현된 페이지만 포함한다 — /winners/*·/store/*는 아직
 // 코드가 없어(전수 확인) 존재하지 않는 URL을 sitemap에 올리지 않는다(지시문 §9 "의미 없는

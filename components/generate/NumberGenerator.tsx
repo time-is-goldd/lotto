@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 import Button from "@/components/ui/Button";
 import Spinner from "@/components/ui/Spinner";
+import { trackProductEvent } from "@/lib/analytics/trackProductEvent";
+import { buildDreamAwareNumbers } from "@/lib/logic/dreamNumbers";
 import { generateNumbers } from "@/lib/logic/generateNumbers";
 
 import {
@@ -57,6 +59,7 @@ export default function NumberGenerator({ authState, initialNumbers, dreamContex
   const [stage, setStage] = useState<Stage>("done");
 
   const savedKeyRef = useRef<string | null>(null);
+  const trackedKeyRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
   const reduceMotionRef = useRef(false);
   const rollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -98,6 +101,22 @@ export default function NumberGenerator({ authState, initialNumbers, dreamContex
         setSaveStatus("error");
       });
   }, [finalNumbers, authState, dreamContext]);
+
+  // §20 numbers_generated — "view와 success를 혼동하지 마라"는 저장 성공(위 useEffect,
+  // number_saved는 서버가 실제로 쏜다)과는 별개 이벤트라 별도 effect·별도 dedupe 키
+  // (trackedKeyRef)로 분리했다. 로그인 여부와 무관하게(비회원도 번호는 만든다) 항상 기록한다.
+  useEffect(() => {
+    const key = toSaveKey(finalNumbers);
+    if (trackedKeyRef.current === key) {
+      return;
+    }
+    trackedKeyRef.current = key;
+
+    trackProductEvent("numbers_generated", {
+      source: dreamContext ? "dream" : "general",
+      dream_number_count: dreamContext?.dreamNumbers.length ?? 0,
+    });
+  }, [finalNumbers, dreamContext]);
 
   function clearAllTimers() {
     if (rollIntervalRef.current) {
@@ -169,12 +188,19 @@ export default function NumberGenerator({ authState, initialNumbers, dreamContex
   // 호출되고 그 결과가 finalNumbers로 저장된다 — rolling 단계의 decoy 숫자는 별도로
   // 여러 번 생성되지만 그 값들은 rollingNumbers에만 머물고 finalNumbers/API에는 절대
   // 전달되지 않는다(§E/§F).
+  // claude-code-luck-platform-launch-prompt.md §12: "같은 꿈에서 매번 꿈 숫자까지 전부 바뀌지
+  // 않게 하고, 무작위로 채우는 부분만 다시 생성되게 해라." dreamContext.dreamNumbers가 있으면
+  // buildDreamAwareNumbers()가 그 고정 부분집합은 그대로 두고 나머지 슬롯만 새로 뽑는다 —
+  // 일반 생성(dreamNumbers 없음)은 기존과 똑같이 generateNumbers()로 완전 무작위다.
   function handleRegenerate() {
     if (stage !== "done") {
       return;
     }
 
-    const next = generateNumbers();
+    const next =
+      dreamContext && dreamContext.dreamNumbers.length > 0
+        ? buildDreamAwareNumbers(dreamContext.dreamNumbers).numbers
+        : generateNumbers();
     setFinalNumbers(next);
 
     if (reduceMotionRef.current) {
@@ -187,15 +213,20 @@ export default function NumberGenerator({ authState, initialNumbers, dreamContex
 
   const numbersToRender = stage === "rolling" ? rollingNumbers : finalNumbers;
   const isRollPulsed = rollTick % 2 === 1;
+  // §12 "꿈 숫자가 하나도 없으면... 꿈과 연결된 숫자라고 표현하지 않는다" — dreamContext가
+  // 있어도(=CTA로 넘어온 dream/situation 자체는 유효) 그 꿈에 저장된 숫자가 하나도 없으면
+  // hasDreamNumbers는 false이고, 아래 문구/강조색을 전부 숨긴 채 완전한 일반 생성으로 보인다.
+  const hasDreamNumbers = Boolean(dreamContext && dreamContext.dreamNumbers.length > 0);
 
   return (
     <div className="flex flex-col items-center gap-6">
-      {/* 꿈 기반 생성임을 화면에 표시한다(docs/PHASE7_DREAM_NUMBER_INTEGRATION_REPORT.md §7).
-          색상이 아니라 텍스트로만 구분한다 — danger/success 미사용 원칙과 동일한 이유. 연출
-          단계와 무관하게 항상 보인다(맥락 정보라 결과 완성 여부에 좌우되지 않는다). */}
-      {dreamContext && (
+      {/* 꿈 기반 생성임을 화면에 표시한다(docs/PHASE7_DREAM_NUMBER_INTEGRATION_REPORT.md §7,
+          claude-code-luck-platform-launch-prompt.md §12). 연출 단계와 무관하게 항상 보인다
+          (맥락 정보라 결과 완성 여부에 좌우되지 않는다). */}
+      {dreamContext && hasDreamNumbers && (
         <p className="text-body text-text-secondary">
-          &ldquo;{dreamContext.keyword}&rdquo; 꿈과 연결된 번호예요.
+          &ldquo;{dreamContext.keyword}&rdquo; 꿈 페이지에 연결된 재미용 숫자를 먼저 담고, 나머지는
+          1~45에서 무작위로 채웠어요.
         </p>
       )}
 
@@ -220,16 +251,23 @@ export default function NumberGenerator({ authState, initialNumbers, dreamContex
         {numbersToRender.map((n, index) => {
           const isPending = stage === "revealing" && index >= revealedCount;
           const isPulsed = stage === "rolling" && isRollPulsed;
+          // rolling 단계의 n은 decoy 숫자라 dreamNumbers와 우연히 겹쳐도 의미가 없다 — done일
+          // 때만(실제 finalNumbers가 화면에 있을 때만) 꿈 숫자 강조색을 적용한다.
+          const isDreamNumber =
+            stage === "done" && hasDreamNumbers && dreamContext!.dreamNumbers.includes(n);
 
           return (
             <li
               key={index}
+              aria-label={isDreamNumber ? `꿈 숫자 ${n}` : undefined}
               className={`flex h-12 w-12 items-center justify-center rounded-full text-button font-bold transition-all duration-200 ease-out ${
                 isPending
                   ? "scale-90 border-2 border-border bg-bg-subtle text-text-secondary opacity-70"
-                  : isPulsed
-                    ? "scale-110 bg-primary text-white opacity-90"
-                    : "scale-100 bg-primary text-white opacity-100"
+                  : isDreamNumber
+                    ? "scale-100 bg-accent-gold text-text-primary opacity-100"
+                    : isPulsed
+                      ? "scale-110 bg-primary text-white opacity-90"
+                      : "scale-100 bg-primary text-white opacity-100"
               }`}
             >
               {isPending ? "?" : n}
@@ -237,6 +275,21 @@ export default function NumberGenerator({ authState, initialNumbers, dreamContex
           );
         })}
       </ol>
+
+      {/* §12 "숫자는 UI에서 라벨 또는 시각적 범례로 구분한다" — 색만으로 구분하면 색맹 사용자가
+          놓칠 수 있어 텍스트 범례를 함께 둔다. done 단계 + 꿈 숫자가 실제로 있을 때만 보인다. */}
+      {stage === "done" && hasDreamNumbers && (
+        <p className="flex items-center gap-4 text-caption text-text-secondary">
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="h-3 w-3 rounded-full bg-accent-gold" />
+            꿈 숫자
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="h-3 w-3 rounded-full bg-primary" />
+            무작위 숫자
+          </span>
+        </p>
+      )}
 
       {/* 지시문 §A-3(Phase5): 현재 이 화면에 실제로 존재하는 유일한 행동은 "다시
           생성하기"뿐이다 — 저장은 로그인 사용자에게 이미 자동으로 이루어지고(위 useEffect,
@@ -270,7 +323,7 @@ export default function NumberGenerator({ authState, initialNumbers, dreamContex
       {stage === "done" && authState === "anonymous" && (
         <p className="text-body text-text-secondary">
           <Link
-            href="/login?next=%2Fgenerate"
+            href="/login?next=%2Fgenerate&reason=save-number"
             className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             로그인

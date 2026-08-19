@@ -22,6 +22,9 @@ export default function ProfileMenu({ nickname }: ProfileMenuProps) {
       <Link href="/my/profile" className="shrink-0 text-text-secondary">
         마이페이지
       </Link>
+      <Link href="/my/account" className="shrink-0 text-text-secondary">
+        계정 설정
+      </Link>
       <LogoutButton />
     </div>
   );

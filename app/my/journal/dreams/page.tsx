@@ -36,7 +36,7 @@ function formatDateOnly(isoDate: string): string {
 export default async function JournalDreamsPage() {
   const user = await getCurrentUser();
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(DREAMS_PATH)}`);
+    redirect(`/login?next=${encodeURIComponent(DREAMS_PATH)}&reason=journal`);
   }
 
   const profile = await getProfile(user.id);

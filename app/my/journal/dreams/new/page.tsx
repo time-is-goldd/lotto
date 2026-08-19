@@ -27,7 +27,7 @@ interface DreamJournalNewPageProps {
 export default async function DreamJournalNewPage({ searchParams }: DreamJournalNewPageProps) {
   const user = await getCurrentUser();
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(NEW_ENTRY_PATH)}`);
+    redirect(`/login?next=${encodeURIComponent(NEW_ENTRY_PATH)}&reason=journal`);
   }
 
   const profile = await getProfile(user.id);

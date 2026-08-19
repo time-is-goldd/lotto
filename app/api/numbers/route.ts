@@ -7,6 +7,7 @@ import {
   parseNumbersInput,
   saveUserNumbers,
 } from "@/lib/api/numbers";
+import { trackProductEvent } from "@/lib/analytics/trackProductEvent";
 import { getCurrentUser } from "@/lib/auth/session";
 
 // 이 라우트 전용 공통 에러 응답 형태 — app/api/profile/route.ts와 동일한 컨벤션
@@ -62,6 +63,14 @@ export async function POST(request: Request) {
 
   try {
     const entry = await saveUserNumbers(user.id, numbers, dreamContext);
+    // §20 number_saved — "view와 success를 혼동하지 마라": DB insert가 실제로 성공한 뒤에만
+    // 보낸다(위 saveUserNumbers()가 던지면 이 줄에 도달하지 못한다). draw_id는 이 스키마가
+    // 저장 시점에 특정 회차를 지정하지 않아(결과 비교는 나중에 날짜 기준으로 대조) null이
+    // 정확한 값이다 — 존재하지 않는 값을 지어내지 않는다.
+    trackProductEvent("number_saved", {
+      source: dreamContext.generationMethod === "dream" ? "dream" : "general",
+      draw_id: null,
+    });
     return NextResponse.json(
       { data: { id: entry.id, numbers: entry.numbers, created_at: entry.created_at } },
       { status: 201 }

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import { getEnv } from "@/lib/utils/env";
+import { getSiteUrl } from "@/lib/utils/env";
 
 // docs/SITEMAP.md §4 P3(noindex) 분류 + proxy.ts의 PROTECTED_PATHS를 그대로 반영한다 —
 // 새 보호 경로 목록을 여기서 재설계하지 않는다. robots.txt는 크롤 예산을 아끼는 안내일 뿐
@@ -12,6 +12,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/my/", "/login", "/onboarding", "/api/", "/ui-preview"],
     },
-    sitemap: `${getEnv("NEXT_PUBLIC_SITE_URL")}/sitemap.xml`,
+    sitemap: `${getSiteUrl()}/sitemap.xml`,
   };
 }

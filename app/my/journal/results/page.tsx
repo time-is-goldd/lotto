@@ -30,7 +30,7 @@ const RESULTS_PATH = "/my/journal/results";
 export default async function JournalResultsPage() {
   const user = await getCurrentUser();
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(RESULTS_PATH)}`);
+    redirect(`/login?next=${encodeURIComponent(RESULTS_PATH)}&reason=check-result`);
   }
 
   const profile = await getProfile(user.id);

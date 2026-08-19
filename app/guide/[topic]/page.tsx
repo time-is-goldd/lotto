@@ -8,7 +8,7 @@ import Badge from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { getGuideByTopic } from "@/lib/api/content";
 import { SITE_NAME } from "@/lib/constants";
-import { getEnv } from "@/lib/utils/env";
+import { getSiteUrl } from "@/lib/utils/env";
 
 interface GuideDetailPageProps {
   params: Promise<{ topic: string }>;
@@ -90,7 +90,7 @@ export async function generateMetadata({ params }: GuideDetailPageProps): Promis
 // 항목의 URL은 generateMetadata()의 canonical과 동일한 encodeURIComponent(guide.title) 규칙을
 // 쓴다.
 function buildBreadcrumbJsonLd(guide: { title: string }): string {
-  const siteUrl = getEnv("NEXT_PUBLIC_SITE_URL");
+  const siteUrl = getSiteUrl();
   const path = `/guide/${encodeURIComponent(guide.title)}`;
 
   const jsonLd = {

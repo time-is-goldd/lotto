@@ -31,7 +31,9 @@ function SignedOutOrPendingView({ authState }: { authState: "anonymous" | "profi
       </div>
       <Link
         href={
-          authState === "anonymous" ? `/login?next=${encodeURIComponent("/fortune")}` : "/onboarding"
+          authState === "anonymous"
+            ? `/login?next=${encodeURIComponent("/fortune")}&reason=fortune`
+            : "/onboarding"
         }
         className={buttonClassName("primary", "lg")}
       >

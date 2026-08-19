@@ -45,9 +45,15 @@ export function getRevealDelaysMs(count: number): number[] {
 // Phase7-3 계약(docs/PHASE7_DREAM_NUMBER_INTEGRATION_REPORT.md). app/dream/[keyword]/page.tsx의
 // CTA가 /generate?dream=<id>로 전달하는 최소 식별 정보 — dream 콘텐츠 전체가 아니라 화면
 // 표시(§7 "꿈 기반 생성임을 표시")와 저장 요청 구성에 필요한 값만 담는다.
+//
+// dreamNumbers는 claude-code-luck-platform-launch-prompt.md §12가 추가한 필드다 —
+// app/generate/page.tsx가 lib/logic/dreamNumbers.ts로 이미 검증·병합한 "꿈에서 가져온 숫자"
+// 부분집합(0~6개, initialNumbers의 부분집합)이다. 빈 배열이면 이 dream에 연결된 유효한 숫자가
+// 없었다는 뜻이라, NumberGenerator가 "꿈과 연결된 번호" 문구/강조색을 표시하지 않는다.
 export interface DreamContext {
   id: number;
   keyword: string;
+  dreamNumbers: number[];
 }
 
 // POST /api/numbers의 요청 바디는 기존에는 numbers 하나뿐이었다(docs/PHASE5_NUMBERS_API_REPORT.md).

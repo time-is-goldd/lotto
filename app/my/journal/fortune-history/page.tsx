@@ -37,7 +37,7 @@ function formatDateTimeKst(isoString: string): string {
 export default async function JournalFortuneHistoryPage() {
   const user = await getCurrentUser();
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(FORTUNE_HISTORY_PATH)}`);
+    redirect(`/login?next=${encodeURIComponent(FORTUNE_HISTORY_PATH)}&reason=journal`);
   }
 
   const profile = await getProfile(user.id);

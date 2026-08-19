@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { SITE_NAME } from "@/lib/constants";
+import { SITE_CONTACT_EMAIL, SITE_NAME } from "@/lib/constants";
 
 import Container from "./Container";
 
@@ -27,6 +27,15 @@ export default function Footer() {
             </Link>
           ))}
         </nav>
+        {/* Phase10-10: 운영자가 실제로 확인 가능하다고 확인한 유일한 공개 연락 채널.
+            별도 문의 폼/DB 테이블을 새로 만들지 않고 mailto 링크 하나로 충분하다(운영비 최소화
+            우선 — 지시문 §30). */}
+        <p>
+          문의:{" "}
+          <a href={`mailto:${SITE_CONTACT_EMAIL}`} className="hover:underline">
+            {SITE_CONTACT_EMAIL}
+          </a>
+        </p>
         <p>
           &copy; {year} {SITE_NAME}. All rights reserved.
         </p>

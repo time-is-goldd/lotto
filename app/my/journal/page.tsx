@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const JOURNAL_LOGIN_NEXT = `/login?next=${encodeURIComponent("/my/journal")}`;
+const JOURNAL_LOGIN_NEXT = `/login?next=${encodeURIComponent("/my/journal")}&reason=journal`;
 // 허브 미리보기는 "일부"만 보여주고 전체는 하위 페이지로 보낸다(이번 지시문 §5
 // "페이지 하나에 모든 데이터를 과도하게 보여주지 마라") — lib/api/journal.ts를 수정하지
 // 않고 이미 지원하는 limit 옵션만 다르게 넘긴다.

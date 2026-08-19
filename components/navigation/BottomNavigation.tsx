@@ -11,13 +11,13 @@ interface NavItem {
 }
 
 // docs/SITEMAP.md 기준 실제 경로만 사용한다. INFORMATION_ARCHITECTURE.md §1.2가 계획한
-// 5번째 탭("더보기")은 SITEMAP에 대응하는 단일 URL이 없고 실제로는 3×3 그리드 오버레이
-// (§1.3)라 이번 "Bottom Navigation" Task 범위 밖으로 판단해 제외했다 — 사용자 확인 후
-// 4탭으로 확정(docs/PHASE3_BOTTOM_NAVIGATION_REPORT.md §6 참조). 존재하지 않는 페이지라도
-// SITEMAP에 정의된 경로는 그대로 쓴다(/generate·/fortune는 아직 구현 전이지만 이미
-// app/page.tsx의 홈 화면도 같은 방식으로 연결해뒀다, docs/PHASE3_HOME_UI_REPORT.md).
+// "더보기" 탭은 SITEMAP에 대응하는 단일 URL이 없고 실제로는 3×3 그리드 오버레이(§1.3)라
+// 여전히 제외한다(docs/PHASE3_BOTTOM_NAVIGATION_REPORT.md §6). 대신 꿈해몽(/dream)은 핵심
+// 유입 채널(SEO 검색 진입점)인데도 하단 네비에 없어 재방문 동선이 끊겨 있었다 —
+// claude-code-luck-platform-launch-prompt.md §17이 지적한 문제를 반영해 5탭으로 확장한다.
 const NAV_ITEMS: NavItem[] = [
   { label: "홈", href: "/", icon: <HomeIcon /> },
+  { label: "꿈해몽", href: "/dream", icon: <DreamIcon /> },
   { label: "번호생성", href: "/generate", icon: <GenerateIcon /> },
   { label: "운세", href: "/fortune", icon: <FortuneIcon /> },
   { label: "다이어리", href: "/my/journal", icon: <DiaryIcon /> },
@@ -49,7 +49,7 @@ export default function BottomNavigation() {
       aria-label="하단 메뉴"
       className="fixed inset-x-0 bottom-0 z-10 h-16 border-t border-border bg-bg-base md:hidden"
     >
-      <ul className="grid h-full grid-cols-4">
+      <ul className="grid h-full grid-cols-5">
         {NAV_ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
 
@@ -92,6 +92,23 @@ function HomeIcon() {
     >
       <path d="M3 11l9-8 9 8" />
       <path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10" />
+    </svg>
+  );
+}
+
+function DreamIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-8 w-8"
+    >
+      <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
     </svg>
   );
 }

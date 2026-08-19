@@ -3,13 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import DreamSituationCard from "@/components/dream/DreamSituationCard";
 import Container from "@/components/layout/Container";
 import Badge from "@/components/ui/Badge";
 import { buttonClassName } from "@/components/ui/Button";
-import { getDreamSituationByKeyword } from "@/lib/api/dreamSituations";
+import { getDreamSituationByKeyword, getDreamSituations } from "@/lib/api/dreamSituations";
 import { getDreamByKeyword } from "@/lib/api/dreams";
 import { SITE_NAME } from "@/lib/constants";
-import { getEnv } from "@/lib/utils/env";
+import { getSiteUrl } from "@/lib/utils/env";
 
 interface DreamSituationPageProps {
   params: Promise<{ keyword: string; situation: string }>;
@@ -91,7 +92,7 @@ function buildBreadcrumbJsonLd(
   dream: { keyword: string },
   situation: { keyword: string; title: string }
 ) {
-  const siteUrl = getEnv("NEXT_PUBLIC_SITE_URL");
+  const siteUrl = getSiteUrl();
   const dreamPath = `/dream/${encodeURIComponent(dream.keyword)}`;
   const situationPath = `${dreamPath}/${encodeURIComponent(situation.keyword)}`;
 
@@ -125,6 +126,15 @@ export default async function DreamSituationPage({ params }: DreamSituationPageP
   }
 
   const numbers = situation.numbers ?? [];
+
+  // Phase10-9 §19/§20: Internal Linking Engine. "복잡한 AI recommendation 필요 없음 — same
+  // parent + display_order 등 단순 deterministic relation"이라는 지시를 그대로 따른다 — 이미
+  // 있는 getDreamSituations(dream.id)(부모 페이지가 쓰는 것과 동일한 함수, display_order 정렬)를
+  // 재사용하고, 현재 보고 있는 situation만 제외한 뒤 앞에서 4개만 보여준다. 새 추천 엔진/쿼리를
+  // 만들지 않는다.
+  const relatedSituations = (await getDreamSituations(dream.id))
+    .filter((candidate) => candidate.id !== situation.id)
+    .slice(0, 4);
 
   return (
     <Container className="flex flex-col gap-8 py-10">
@@ -203,16 +213,31 @@ export default async function DreamSituationPage({ params }: DreamSituationPageP
         )}
       </section>
 
-      {/* 지시문 §12: 상황 전용 자동 번호 생성/저장 기능은 이번 Task 범위가 아니다. 기존
-          /generate?dream= 계약(app/dream/[keyword]/page.tsx와 동일)을 그대로 재사용해 부모
-          꿈 id만 넘긴다 — 이 상황을 "기억"해서 실제로 저장하거나 이후 페이지에 전달하는 기능은
-          없으므로, 없는 기능을 있는 것처럼 암시하지 않기 위해 문구도 "이 꿈을 기억하며"로
-          한정했다(실제로 서버에 저장되는 것은 dream.id뿐, situation은 URL/화면 표시에만 쓰인다). */}
+      {relatedSituations.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-h2 font-bold text-text-primary">비슷한 꿈도 확인해보세요</h2>
+          <ul className="flex flex-col gap-2">
+            {relatedSituations.map((related) => (
+              <li key={related.id}>
+                <DreamSituationCard dreamKeyword={dream.keyword} situation={related} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* claude-code-luck-platform-launch-prompt.md §12: situation의 numbers를 실제로
+          /generate까지 전달해야 "행운 숫자" 섹션에 보이는 값과 번호 생성 결과가 일치한다 —
+          부모 id만 넘기면 app/generate/page.tsx가 situation 자체의 숫자를 알 방법이 없어
+          Parent 상속(최대 3개) 경로로만 폴백하게 된다. situation.keyword를 함께 넘기면
+          resolveDreamNumberCandidates()가 이 situation의 numbers를 우선 사용한다(없으면 동일하게
+          Parent 상속으로 폴백). "저장되는 것은 dream.id뿐"이라는 기존 제약(POST /api/numbers의
+          relatedDreamId)은 그대로다 — situation은 여전히 번호 생성 시 표시용 힌트일 뿐이다. */}
       <Link
-        href={`/generate?dream=${dream.id}`}
+        href={`/generate?dream=${dream.id}&situation=${encodeURIComponent(situation.keyword)}`}
         className={`${buttonClassName("primary", "lg")} self-center`}
       >
-        이 꿈을 기억하며 번호 생성하기
+        이 꿈의 숫자로 번호 완성하기
       </Link>
 
       {/* 지시문 §25: 부모↔상황 내부 링크 강화. 상세 페이지 하단에 "다른 [부모꿈] 해몽 보기"로

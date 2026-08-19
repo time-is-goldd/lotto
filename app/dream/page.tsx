@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import DreamCard from "@/components/dream/DreamCard";
 import DreamCategoryNav from "@/components/dream/DreamCategoryNav";
+import DreamSearchInput from "@/components/dream/DreamSearchInput";
 import Container from "@/components/layout/Container";
 import EmptyState from "@/components/ui/EmptyState";
 import { getDreamCategories, getDreams } from "@/lib/api/dreams";
@@ -29,6 +30,11 @@ export default async function DreamHubPage() {
           꿈풀이로 나만의 행운번호를 찾아보세요. 궁금한 꿈 키워드를 눌러 해몽과 추천 번호를 확인해보세요.
         </p>
       </div>
+
+      {/* Phase10-9 §29/§30: Parent가 45개로 늘어나면서 카드 그리드만으로는 원하는 꿈을 바로
+          찾기 어려울 수 있어 검색 입력을 추가했다 — 새 검색 결과 페이지를 만들지 않고
+          입력창 아래 드롭다운으로 몇 개만 보여주는 최소 구현이다(DreamSearchInput.tsx). */}
+      <DreamSearchInput />
 
       {categories.length > 0 && (
         <section className="flex flex-col gap-3">

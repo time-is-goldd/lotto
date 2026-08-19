@@ -1,6 +1,6 @@
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@/lib/supabase/service";
-import { getEnv } from "@/lib/utils/env";
+import { getEnv, getSiteUrl } from "@/lib/utils/env";
 
 // docs/PHASE2_AUTH_DECISION.md Decision 2: REST API + Admin API 방식.
 // 카카오는 Supabase Auth의 기본 OAuth 프로바이더가 아니므로, 카카오 REST API로 직접
@@ -12,6 +12,16 @@ const KAKAO_USER_ME_URL = "https://kapi.kakao.com/v2/user/me";
 
 // login/callback 두 Route Handler가 공유하는 1회용 CSRF state 쿠키 이름.
 export const KAKAO_OAUTH_STATE_COOKIE = "kakao_oauth_state";
+// claude-code-luck-platform-launch-prompt.md §13/§14: 로그인 시작 시점의 next를 OAuth 왕복
+// 내내 들고 가야 콜백에서 원래 화면으로 되돌릴 수 있다. state 쿠키와 같은 수명(10분)으로 별도
+// 쿠키에 담는다 — state 쿠키 payload를 JSON으로 바꾸면 기존 CSRF 검증 로직까지 건드리게 되어
+// 그보다 위험이 작은 별도 쿠키를 택했다.
+export const KAKAO_OAUTH_NEXT_COOKIE = "kakao_oauth_next";
+// §20 login_started/login_completed 이벤트가 같은 reason 값으로 왕복해야 퍼널을 이어볼 수
+// 있다("save-number로 시작한 로그인이 실제로 몇 명 완료됐나"). next와 동일한 이유로 쿠키에
+// 담아 콜백까지 들고 간다 — 리다이렉트에는 쓰이지 않는(open redirect 위험이 없는) 순수
+// 라벨이라 next처럼 별도 화이트리스트 검증은 하지 않고 길이만 제한한다.
+export const KAKAO_OAUTH_REASON_COOKIE = "kakao_oauth_reason";
 
 export interface KakaoTokenResponse {
   access_token: string;
@@ -33,7 +43,7 @@ interface KakaoUserMeResponse {
 }
 
 export function getKakaoRedirectUri(): string {
-  return `${getEnv("NEXT_PUBLIC_SITE_URL")}/api/auth/kakao/callback`;
+  return `${getSiteUrl()}/api/auth/kakao/callback`;
 }
 
 export function buildKakaoAuthorizeUrl(state: string): string {

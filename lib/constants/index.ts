@@ -1,5 +1,11 @@
 export const SITE_NAME = "Luck Platform";
 
+// Phase10-10: 운영자가 직접 제공한 실제 공개 문의 이메일(개인정보 문의·회원탈퇴 문의 등).
+// 운영자는 사업자 등록 없는 개인이라 별도 상호/사업자정보 표시 항목은 없다 — 이 이메일이
+// 유일한 공개 연락 채널이다. Footer(components/layout/Footer.tsx)와 app/privacy/page.tsx
+// §8(문의 방법) 두 곳에서만 재사용하고, 같은 값을 다른 파일에 직접 하드코딩하지 않는다.
+export const SITE_CONTACT_EMAIL = "yeo090110@gmail.com";
+
 // profiles 관련 상수. docs/DATABASE_SCHEMA.md §3.1(nickname VARCHAR(30))과
 // [[FEATURE_SPEC]] §9.3(만 19세 미만 이용제한)의 값을 그대로 반영한다.
 export const PROFILE_NICKNAME_MAX_LENGTH = 30;

@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
 
 import Container from "@/components/layout/Container";
-import { SITE_NAME } from "@/lib/constants";
+import { SITE_CONTACT_EMAIL, SITE_NAME } from "@/lib/constants";
 
 // docs/EXECUTION_PLAN.md Phase10 §3/§5/§6(법적 최소 요건, ROADMAP MVP Must)이 확정한 route다.
 // 내용은 실제 schema(supabase/migrations/*.sql)와 실제 코드(lib/auth/kakao.ts, lib/auth/profile.ts,
 // lib/api/numbers.ts, lib/api/notifications.ts 등)를 근거로만 작성했다 — 코드로 확인되지 않는
-// 보관기간·삭제 절차·제3자 미제공 같은 단정적 문구는 쓰지 않는다. 실제 운영자 성명/사업자
-// 정보/연락처는 저장소 어디에도 존재하지 않아(전수 확인) 임의로 채우지 않았다 — 해당 항목은
-// docs/PHASE10_LEGAL_PAGES_REPORT.md §14 "Before Launch Required Information"으로 별도 보고했다.
+// 보관기간·삭제 절차·제3자 미제공 같은 단정적 문구는 쓰지 않는다. 운영자는 사업자 등록 없는
+// 개인으로 운영을 확인했고(docs/PUBLIC_LAUNCH_IDENTITY_DOMAIN_REPORT.md §3), 결제 기능이
+// 없어 전자상거래법상 사업자정보 표시 의무와는 무관하다 — 그래서 대표자명/사업자등록번호/
+// 주소 같은 항목은 여전히 두지 않는다. 운영자가 실제로 제공한 공개 문의 이메일
+// (SITE_CONTACT_EMAIL, lib/constants/index.ts)만 §8에 반영한다.
 const TITLE = "개인정보처리방침";
 const DESCRIPTION = `${SITE_NAME}이 처리하는 개인정보 항목과 이용 목적을 안내합니다.`;
 const PATH = "/privacy";
+const EFFECTIVE_DATE = "2026-08-18";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -41,6 +44,7 @@ export default function PrivacyPage() {
           {SITE_NAME}(이하 &ldquo;서비스&rdquo;)이 처리하는 개인정보 항목과 이용 목적을
           안내합니다.
         </p>
+        <p className="mt-1 text-caption text-text-secondary">시행일: {EFFECTIVE_DATE}</p>
       </div>
 
       <div className="flex max-w-[720px] flex-col gap-8 text-body leading-relaxed text-text-primary">
@@ -90,9 +94,10 @@ export default function PrivacyPage() {
             3. 보관 및 삭제
           </h2>
           <p>
-            개인정보는 서비스를 제공하는 동안 보관됩니다. 현재 서비스는 이용자가 직접 계정을
-            탈퇴하거나 데이터 삭제를 요청할 수 있는 별도의 화면을 제공하지 않고 있습니다. 삭제를
-            원하시는 경우 아래 &ldquo;8. 문의 방법&rdquo;을 통해 요청해주시면 확인 후 처리합니다.
+            개인정보는 서비스를 제공하는 동안 보관됩니다. 로그인 후 계정 설정 화면에서 이용자가
+            직접 회원탈퇴를 진행할 수 있으며, 탈퇴 시 생성·저장한 번호, 꿈 기록, 오늘의 행운 결과,
+            알림 등 계정과 연결된 개인 기록은 삭제되고 인증 계정도 함께 삭제됩니다. 관리자 계정은
+            일반 회원탈퇴 화면을 통해 삭제되지 않습니다.
           </p>
         </section>
 
@@ -134,8 +139,9 @@ export default function PrivacyPage() {
             6. 이용자의 권리
           </h2>
           <p>
-            이용자는 본인의 개인정보에 대해 열람, 정정, 삭제를 요청할 권리가 있습니다. 현재 별도
-            설정 화면은 제공되지 않으며, 요청은 아래 &ldquo;8. 문의 방법&rdquo;을 통해 접수합니다.
+            이용자는 본인의 개인정보에 대해 열람, 정정, 삭제를 요청할 권리가 있습니다. 삭제(회원탈퇴)는
+            로그인 후 계정 설정 화면에서 직접 진행할 수 있으며, 그 외 열람·정정 요청은 아래
+            &ldquo;8. 문의 방법&rdquo;을 통해 접수합니다.
           </p>
         </section>
 
@@ -154,8 +160,12 @@ export default function PrivacyPage() {
             8. 문의 방법
           </h2>
           <p>
-            현재 서비스는 별도의 고객센터·문의 채널을 아직 마련하지 못했습니다. 문의 채널은
-            준비되는 대로 이 페이지를 통해 안내할 예정입니다.
+            개인정보 열람·정정 요청, 그 밖에 계정 관련 문의는 아래 이메일로 접수합니다.
+          </p>
+          <p>
+            <a href={`mailto:${SITE_CONTACT_EMAIL}`} className="text-primary underline">
+              {SITE_CONTACT_EMAIL}
+            </a>
           </p>
         </section>
 
