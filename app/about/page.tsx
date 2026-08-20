@@ -50,17 +50,20 @@ export default function AboutPage() {
         </h2>
         <ul className="flex flex-col gap-3 text-body leading-relaxed text-text-primary">
           <li>
-            <strong className="font-bold">번호 생성</strong> — 1부터 45 사이의 숫자 6개를 무작위로
-            뽑아드립니다. 로그인한 경우 생성한 번호가 자동으로 저장됩니다.
+            <strong className="font-bold">번호 생성</strong> — 버튼을 누르면 1부터 45 사이의
+            숫자 6개를 무작위로 뽑아드립니다. 로그인한 경우 생성한 번호가 자동으로 저장됩니다.
           </li>
           <li>
             <strong className="font-bold">꿈해몽</strong> — 꿈 키워드별 해몽 콘텐츠와 그에 연결된
             추천 번호를 확인할 수 있습니다.
           </li>
           <li>
-            <strong className="font-bold">오늘의 행운</strong> — 로그인 후 생년월일을 바탕으로
-            하루에 한 번, 그날의 금전운·행동 지침·행운 요소·추천 번호를 확인할 수 있습니다. 같은
-            날에는 언제 다시 확인해도 같은 결과가 보이고, 다음 날 새로운 결과로 바뀝니다.
+            <strong className="font-bold">오늘의 행운</strong> — 나이 제한 없이 로그인 없이도
+            생년월일을 직접 입력해 그날의 금전운·행동 지침·행운 요소·추천 번호를 바로 확인할
+            수 있습니다. 비회원 정보와 결과는 이 브라우저에만 임시 저장됩니다. 카카오로
+            로그인하면 정보를 여러 기기에 걸쳐 저장해두고 다음부터는 다시 입력하지 않아도
+            돼요. 프로필(입력 정보)마다 하루 한 번만 새로 만들어지고, 같은 날에는 언제 다시
+            확인해도 같은 결과가 보이며, 다음 날 새로운 결과로 바뀝니다.
           </li>
           <li>
             <strong className="font-bold">행운 다이어리</strong> — 직접 생성하거나 저장한 번호

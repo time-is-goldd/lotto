@@ -11,6 +11,7 @@ import {
   generateDailyFortune,
   generateSeededNumbers,
   zodiacSignFromBirthDate,
+  type DailyFortuneInput,
 } from "./dailyFortune";
 import { MAX_LUCK_SCORE, MIN_LUCK_SCORE } from "@/lib/data/fortune/tiers";
 
@@ -19,47 +20,87 @@ function sequenceRandom(values: number[]): () => number {
   return () => values[Math.min(i++, values.length - 1)];
 }
 
-const USER_A = "11111111-1111-4111-8111-111111111111";
-const USER_B = "22222222-2222-4222-8222-222222222222";
 const BIRTH_DATE = "1995-03-14";
-const RESULT_DATE = "2026-08-12";
+const TARGET_DATE = "2026-08-12";
 
-describe("generateDailyFortune — determinism (같은 사용자+같은 날짜=항상 같은 결과)", () => {
-  it("returns an identical result for the same (userId, birthDate, resultDate) across repeated calls", () => {
-    const first = generateDailyFortune(USER_A, BIRTH_DATE, RESULT_DATE);
-    const second = generateDailyFortune(USER_A, BIRTH_DATE, RESULT_DATE);
+const BASE_INPUT: DailyFortuneInput = { birthDate: BIRTH_DATE, targetDate: TARGET_DATE };
+
+describe("generateDailyFortune — determinism (같은 입력+같은 날짜=항상 같은 결과)", () => {
+  it("returns an identical result for the same input across repeated calls", () => {
+    const first = generateDailyFortune(BASE_INPUT);
+    const second = generateDailyFortune(BASE_INPUT);
     expect(second).toEqual(first);
   });
 
   it("does not depend on call order or prior calls (no hidden mutable state)", () => {
-    generateDailyFortune(USER_B, "1988-11-02", "2026-01-01");
-    const first = generateDailyFortune(USER_A, BIRTH_DATE, RESULT_DATE);
-    generateDailyFortune(USER_B, "2000-06-30", "2026-12-31");
-    const second = generateDailyFortune(USER_A, BIRTH_DATE, RESULT_DATE);
+    generateDailyFortune({ birthDate: "1988-11-02", targetDate: "2026-01-01" });
+    const first = generateDailyFortune(BASE_INPUT);
+    generateDailyFortune({ birthDate: "2000-06-30", targetDate: "2026-12-31" });
+    const second = generateDailyFortune(BASE_INPUT);
     expect(second).toEqual(first);
   });
 });
 
-describe("generateDailyFortune — varies across users/dates", () => {
-  it("produces a different result for a different resultDate (new day → new result)", () => {
+// claude-code-luck-platform-fortune-domain-followup-prompt.md §7: "비회원과 회원이 같은
+// 입력을 사용하면 기본 운세 결과도 일관되어야 한다" — userId가 더 이상 시드에 없으므로,
+// 계정 유무와 무관하게 같은 입력이면 항상 같은 결과다. 이 계약이 §7의 핵심이라 별도
+// describe 블록으로 명시한다.
+describe("generateDailyFortune — guest/member consistency (§7)", () => {
+  it("produces the identical result regardless of which 'account' conceptually calls it", () => {
+    // userId 파라미터 자체가 없으므로, 같은 입력을 두 번 호출하는 것 자체가 이미
+    // "비회원 호출"과 "회원 호출"이 같은 결과를 낸다는 것을 증명한다.
+    const asGuest = generateDailyFortune(BASE_INPUT);
+    const asMember = generateDailyFortune({ ...BASE_INPUT });
+    expect(asMember).toEqual(asGuest);
+  });
+
+  it("gender affects the result when provided, and 'N' behaves the same as omitted", () => {
+    const omitted = generateDailyFortune(BASE_INPUT);
+    const explicitN = generateDailyFortune({ ...BASE_INPUT, gender: "N" });
+    const male = generateDailyFortune({ ...BASE_INPUT, gender: "M" });
+
+    expect(explicitN).toEqual(omitted);
+    expect(male).not.toEqual(omitted);
+  });
+
+  it("birthTime affects the result when provided, and normalizes HH:MM vs HH:MM:SS to the same seed", () => {
+    const omitted = generateDailyFortune(BASE_INPUT);
+    const withTimeShort = generateDailyFortune({ ...BASE_INPUT, birthTime: "14:30" });
+    const withTimeLong = generateDailyFortune({ ...BASE_INPUT, birthTime: "14:30:00" });
+
+    expect(withTimeShort).not.toEqual(omitted);
+    expect(withTimeLong).toEqual(withTimeShort);
+  });
+});
+
+describe("generateDailyFortune — varies across inputs", () => {
+  it("produces a different result for a different targetDate (new day → new result)", () => {
     const results = Array.from({ length: 15 }, (_, i) =>
-      generateDailyFortune(USER_A, BIRTH_DATE, `2026-08-${String(i + 1).padStart(2, "0")}`)
+      generateDailyFortune({
+        birthDate: BIRTH_DATE,
+        targetDate: `2026-08-${String(i + 1).padStart(2, "0")}`,
+      })
     );
     const allIdentical = results.every((r) => JSON.stringify(r) === JSON.stringify(results[0]));
     expect(allIdentical).toBe(false);
   });
 
-  it("produces a different result for a different userId on the same day", () => {
-    const results = ["u1", "u2", "u3", "u4", "u5", "u6", "u7", "u8"].map((id) =>
-      generateDailyFortune(id, BIRTH_DATE, RESULT_DATE)
-    );
+  it("produces a different result for a different birthDate on the same targetDate", () => {
+    const results = [
+      "1990-01-01",
+      "1991-02-02",
+      "1992-03-03",
+      "1993-04-04",
+      "1994-05-05",
+      "1995-06-06",
+    ].map((birthDate) => generateDailyFortune({ birthDate, targetDate: TARGET_DATE }));
     const allIdentical = results.every((r) => JSON.stringify(r) === JSON.stringify(results[0]));
     expect(allIdentical).toBe(false);
   });
 });
 
 describe("generateDailyFortune — field shape/range invariants", () => {
-  const fortune = generateDailyFortune(USER_A, BIRTH_DATE, RESULT_DATE);
+  const fortune = generateDailyFortune(BASE_INPUT);
 
   it("recommendedNumbers has exactly 6 unique ascending numbers within 1..45", () => {
     expect(fortune.recommendedNumbers).toHaveLength(6);
@@ -84,7 +125,7 @@ describe("generateDailyFortune — field shape/range invariants", () => {
 
   it("luckScore stays within the configured MIN..MAX range", () => {
     for (let i = 0; i < 30; i++) {
-      const r = generateDailyFortune(`user-${i}`, BIRTH_DATE, RESULT_DATE);
+      const r = generateDailyFortune({ birthDate: `1990-01-0${(i % 9) + 1}`, targetDate: TARGET_DATE });
       expect(r.luckScore).toBeGreaterThanOrEqual(MIN_LUCK_SCORE);
       expect(r.luckScore).toBeLessThanOrEqual(MAX_LUCK_SCORE);
     }
@@ -106,7 +147,10 @@ describe("generateDailyFortune — field shape/range invariants", () => {
 
   it("moneyLuckScore stays within MIN_MONEY_SCORE..MAX_MONEY_SCORE and never strays more than 15 from luckScore", () => {
     for (let i = 0; i < 30; i++) {
-      const r = generateDailyFortune(`money-user-${i}`, BIRTH_DATE, RESULT_DATE);
+      const r = generateDailyFortune({
+        birthDate: `1990-0${(i % 9) + 1}-15`,
+        targetDate: TARGET_DATE,
+      });
       expect(r.moneyLuckScore).toBeGreaterThanOrEqual(MIN_MONEY_SCORE);
       expect(r.moneyLuckScore).toBeLessThanOrEqual(MAX_MONEY_SCORE);
       expect(Math.abs(r.moneyLuckScore - r.luckScore)).toBeLessThanOrEqual(15);
@@ -115,9 +159,14 @@ describe("generateDailyFortune — field shape/range invariants", () => {
 });
 
 describe("zodiacSignFromBirthDate", () => {
-  it("depends only on birthDate, not on userId or resultDate", () => {
-    const a = generateDailyFortune(USER_A, BIRTH_DATE, RESULT_DATE);
-    const b = generateDailyFortune(USER_B, BIRTH_DATE, "2026-12-25");
+  it("depends only on birthDate, not on targetDate/gender/birthTime", () => {
+    const a = generateDailyFortune(BASE_INPUT);
+    const b = generateDailyFortune({
+      birthDate: BIRTH_DATE,
+      targetDate: "2026-12-25",
+      gender: "F",
+      birthTime: "08:00",
+    });
     expect(a.zodiacSign).toBe(b.zodiacSign);
   });
 
@@ -172,16 +221,29 @@ describe("zodiacSignFromBirthDate — full 12-sign boundary sweep", () => {
 
 describe("computeFortuneSeed", () => {
   it("is deterministic for identical inputs", () => {
-    expect(computeFortuneSeed(USER_A, BIRTH_DATE, RESULT_DATE)).toBe(
-      computeFortuneSeed(USER_A, BIRTH_DATE, RESULT_DATE)
-    );
+    expect(computeFortuneSeed(BASE_INPUT)).toBe(computeFortuneSeed(BASE_INPUT));
   });
 
-  it("changes when any single input changes", () => {
-    const base = computeFortuneSeed(USER_A, BIRTH_DATE, RESULT_DATE);
-    expect(computeFortuneSeed(USER_B, BIRTH_DATE, RESULT_DATE)).not.toBe(base);
-    expect(computeFortuneSeed(USER_A, "1995-03-15", RESULT_DATE)).not.toBe(base);
-    expect(computeFortuneSeed(USER_A, BIRTH_DATE, "2026-08-13")).not.toBe(base);
+  it("changes when birthDate, targetDate, gender, or birthTime changes", () => {
+    const base = computeFortuneSeed(BASE_INPUT);
+    expect(computeFortuneSeed({ ...BASE_INPUT, birthDate: "1995-03-15" })).not.toBe(base);
+    expect(computeFortuneSeed({ ...BASE_INPUT, targetDate: "2026-08-13" })).not.toBe(base);
+    expect(computeFortuneSeed({ ...BASE_INPUT, gender: "M" })).not.toBe(base);
+    expect(computeFortuneSeed({ ...BASE_INPUT, birthTime: "09:00" })).not.toBe(base);
+  });
+
+  it("treats gender omitted, null, and 'N' as the same unknown state", () => {
+    const omitted = computeFortuneSeed(BASE_INPUT);
+    const nullGender = computeFortuneSeed({ ...BASE_INPUT, gender: null });
+    const explicitN = computeFortuneSeed({ ...BASE_INPUT, gender: "N" });
+    expect(nullGender).toBe(omitted);
+    expect(explicitN).toBe(omitted);
+  });
+
+  it("treats birthTime omitted and null as the same unknown state", () => {
+    const omitted = computeFortuneSeed(BASE_INPUT);
+    const nullTime = computeFortuneSeed({ ...BASE_INPUT, birthTime: null });
+    expect(nullTime).toBe(omitted);
   });
 });
 

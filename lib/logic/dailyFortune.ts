@@ -1,5 +1,3 @@
-import { createHash } from "crypto";
-
 import { AVOID_ACTION_BY_TIER } from "@/lib/data/fortune/avoidAction";
 import { LUCKY_COLORS } from "@/lib/data/fortune/luckyColor";
 import { LUCKY_TIMES } from "@/lib/data/fortune/luckyTime";
@@ -9,7 +7,10 @@ import { RECOMMENDED_ACTION_BY_TIER } from "@/lib/data/fortune/recommendedAction
 import { MAX_LUCK_SCORE, MIN_LUCK_SCORE, tierFromLuckScore } from "@/lib/data/fortune/tiers";
 
 // 오늘의 행운(Phase10-4A) 전용 결정론적 엔진. OpenAI/Claude 등 외부 AI API를 전혀 쓰지 않고
-// (지시문 §36 명시 금지) (userId, birthDate, resultDate) 조합만으로 매번 같은 결과를 계산한다.
+// (지시문 §36 명시 금지) DailyFortuneInput(birthDate/targetDate/gender?/birthTime?) 조합만으로
+// 매번 같은 결과를 계산한다. userId를 시드에 포함하지 않는 이유는
+// claude-code-luck-platform-fortune-domain-followup-prompt.md §7 참조 — 비회원(계정 없음)과
+// 회원이 같은 입력을 넣으면 항상 같은 결과를 받아야 한다는 요구 때문이다.
 // lib/logic/generateNumbers.ts(Math.random() 기반, 기존 "번호 생성" 기능)는 이 파일에서
 // import도, 수정도 하지 않는다 — 완전히 별도의 코드 경로다(지시문 §12).
 export const LOTTO_MIN = 1;
@@ -19,9 +20,9 @@ export const MIN_LUCKY_NUMBER_COUNT = 1;
 export const MAX_LUCKY_NUMBER_COUNT = 3;
 
 // Daily Fortune UX Polish Task §10~§12: 금전운을 숫자 지수로도 보여준다. 새 DB 컬럼/migration을
-// 추가하지 않는다 — recommendedNumbers/luckyNumbers와 동일하게 (userId, birthDate, resultDate)
-// 시드에서 항상 다시 계산 가능한 순수 파생값이라, lib/api/fortune.ts가 저장된 행에서 다시
-// 계산해 제공한다(§5 참조).
+// 추가하지 않는다 — recommendedNumbers/luckyNumbers와 동일하게 DailyFortuneInput 시드에서 항상
+// 다시 계산 가능한 순수 파생값이라, lib/api/fortune.ts가 저장된 행에서 다시 계산해 제공한다
+// (§5 참조).
 export const MIN_MONEY_SCORE = 40;
 export const MAX_MONEY_SCORE = 95;
 // overall luckScore를 그대로 복사하지 않기 위해 최소 1~최대 15 사이의 편차를 준다(0 제외) —
@@ -42,14 +43,59 @@ export interface DailyFortune {
   recommendedNumbers: number[];
 }
 
-// sha256 다이제스트 앞 4바이트를 부호 없는 32비트 정수로 읽어 시드로 쓴다. crypto는 Node
-// 표준 모듈이라 새 의존성을 추가하지 않는다.
-function hashToSeed(input: string): number {
-  return createHash("sha256").update(input).digest().readUInt32BE(0);
+// profiles.gender(0001_profiles.sql)의 DB enum 값을 그대로 재사용한다 — 이 파일이 별도로
+// "male"/"female" 같은 값을 새로 발명하면 lib/api/fortune.ts가 매 호출마다 다시 매핑해야
+// 한다. "N"(선택 안 함)은 gender가 없는 것과 동일하게 취급한다(§7 "선택하지 않은 값은 임의의
+// 기본 성별로 위장하지 말고 명시적인 unknown 상태로 처리").
+export type FortuneGender = "M" | "F" | "N";
+
+// claude-code-luck-platform-fortune-domain-followup-prompt.md §7: "비회원과 회원이 같은
+// 입력을 사용하면 기본 운세 결과도 일관되어야 한다"는 요구에 따라 userId를 시드에서 뺐다 —
+// 이 입력 계약(birthDate/targetDate/gender?/birthTime?)만으로 결과가 완전히 결정된다. userId는
+// fortune_results 행의 소유자를 표시하는 DB 컬럼일 뿐, 더 이상 결과 내용 자체에는 관여하지
+// 않는다(lib/api/fortune.ts가 여전히 user_id로 저장은 하지만, 계산에는 전달하지 않는다).
+export interface DailyFortuneInput {
+  birthDate: string; // "YYYY-MM-DD"
+  targetDate: string; // "YYYY-MM-DD" (KST 기준 결과 날짜)
+  gender?: FortuneGender | null;
+  birthTime?: string | null; // "HH:MM" 또는 "HH:MM:SS"(DB time 컬럼 형식 그대로 받아도 무방)
 }
 
-export function computeFortuneSeed(userId: string, birthDate: string, resultDate: string): number {
-  return hashToSeed(`${userId}|${birthDate}|${resultDate}`);
+// claude-code-luck-platform-daily-fortune-number-demo-prompt.md §13: "가능하면 비회원 운세
+// 계산은... 브라우저에서 실행해 raw 생년월일이 서버로 전송되지 않게 한다. 알고리즘에
+// secret이 필요하지 않다면 server action을 억지로 거치지 않는다." 이 함수가 예전에 쓰던
+// Node crypto.createHash("sha256")는 브라우저에 없다 — 이 파일을 Client Component
+// (components/fortune/GuestFortuneForm.tsx)에서 그대로 import해 서버를 거치지 않고 계산할
+// 수 있으려면 Node 전용 API에 의존하면 안 된다. FNV-1a는 암호학적 해시가 아니지만(이 값이
+// 지키는 건 "예측 불가능성"이 아니라 "같은 입력→같은 출력"뿐이라 secret이 필요 없다), 32비트
+// 정수 하나만 필요한 seeded PRNG 입력으로는 충분히 고르게 분산되고, Node/브라우저 양쪽에서
+// 동기적으로(await 없이) 동일한 결과를 낸다.
+function hashToSeed(input: string): number {
+  let hash = 0x811c9dc5; // FNV-1a 32-bit offset basis
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193); // FNV prime
+  }
+  return hash >>> 0;
+}
+
+// gender가 "M"/"F"가 아니면(null/undefined/"N") 개인화에 반영하지 않는다 — "N"과 미입력을
+// 시드 레벨에서 구분하지 않는 것이 의도적이다(§7 "선택하지 않은 값은... 명시적인 unknown
+// 상태로 처리" — 둘 다 "선택하지 않음"과 동일한 unknown 상태이지 서로 다른 기본값이 아니다).
+function normalizeGenderForSeed(gender: FortuneGender | null | undefined): string {
+  return gender === "M" || gender === "F" ? gender : "unknown";
+}
+
+// DB time 컬럼은 "HH:MM:SS"(초 포함)로 내려올 수 있고, 폼 입력은 "HH:MM"이다 — 앞 5자만
+// 비교해 같은 시각을 입력한 게스트와 회원이 항상 같은 시드를 얻게 한다(§7 일관성 요구).
+function normalizeBirthTimeForSeed(birthTime: string | null | undefined): string {
+  return birthTime ? birthTime.slice(0, 5) : "unknown";
+}
+
+export function computeFortuneSeed(input: DailyFortuneInput): number {
+  const genderPart = normalizeGenderForSeed(input.gender);
+  const timePart = normalizeBirthTimeForSeed(input.birthTime);
+  return hashToSeed(`${input.birthDate}|${genderPart}|${timePart}|${input.targetDate}`);
 }
 
 // 같은 base seed에서 용도별(콘텐츠 선택/번호 생성 등)로 서로 다른 하위 시드를 뽑아낸다.
@@ -138,12 +184,8 @@ export function computeMoneyLuckScore(overallScore: number, random: () => number
   return Math.min(MAX_MONEY_SCORE, Math.max(MIN_MONEY_SCORE, raw));
 }
 
-export function generateDailyFortune(
-  userId: string,
-  birthDate: string,
-  resultDate: string
-): DailyFortune {
-  const seed = computeFortuneSeed(userId, birthDate, resultDate);
+export function generateDailyFortune(input: DailyFortuneInput): DailyFortune {
+  const seed = computeFortuneSeed(input);
 
   const contentRandom = createSeededRandom(deriveSeed(seed, "content"));
   const luckScore = computeLuckScore(contentRandom);
@@ -169,7 +211,7 @@ export function generateDailyFortune(
   const luckyNumbers = generateSeededNumbers(deriveSeed(seed, "lucky-numbers"), luckyNumberCount);
 
   return {
-    zodiacSign: zodiacSignFromBirthDate(birthDate),
+    zodiacSign: zodiacSignFromBirthDate(input.birthDate),
     overallFortune,
     luckScore,
     moneyLuck,

@@ -177,7 +177,14 @@ export default function DailyFortuneCard({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-h1 font-bold text-text-primary">오늘의 행운</h1>
+        {/* claude-code-luck-platform-fortune-domain-followup-prompt.md §12: 결과가 나타나면
+            결과 heading으로 focus를 이동해야 한다 — id+tabIndex를 항상 갖고 있으면 호출부
+            (GuestFortuneForm.tsx/MemberFortuneReveal.tsx)가 조건 없이 document.getElementById로
+            포커스만 옮기면 된다. tabIndex=-1은 마우스 클릭으로는 여전히 포커스되지 않고
+            프로그램적 focus()만 허용한다. */}
+        <h1 id="fortune-result-heading" tabIndex={-1} className="text-h1 font-bold text-text-primary">
+          오늘의 행운
+        </h1>
         <p className="mt-1 text-body text-text-secondary">{formatResultDateLabel(resultDate)}</p>
       </div>
 

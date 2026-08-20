@@ -71,6 +71,16 @@ export default function PrivacyPage() {
               하루 1회 생성되는 오늘의 행운 결과(금전운·행동 지침·행운 요소·추천 번호)
             </li>
           </ul>
+          <p>
+            <strong className="font-bold">로그인 없이 오늘의 행운을 이용하는 경우</strong> —
+            입력한 생년월일·성별·태어난 시각과 그날의 운세 결과는 이용자의 브라우저
+            안(localStorage)에만 임시 저장되며, 계정이나 서버 데이터베이스에는 저장되지
+            않습니다. 계산 자체도 서버가 아니라 이용자의 브라우저에서 이루어져 생년월일이
+            서버로 전송되지 않습니다. 같은 날 같은 정보로 다시 확인하면 새로 계산하지 않고
+            브라우저에 저장된 결과를 그대로 보여주며, 브라우저 데이터를 삭제하거나 다른
+            기기·브라우저를 사용하면 그 기록도 함께 사라집니다. 서버 로그나 분석 도구에는
+            생년월일·성별·태어난 시각 원문을 남기지 않습니다.
+          </p>
         </section>
 
         <section aria-labelledby="privacy-purpose-heading" className="flex flex-col gap-2">
@@ -147,11 +157,21 @@ export default function PrivacyPage() {
 
         <section aria-labelledby="privacy-minor-heading" className="flex flex-col gap-2">
           <h2 id="privacy-minor-heading" className="text-h2 font-bold text-text-primary">
-            7. 만 19세 미만 이용 제한
+            7. 이용 연령
           </h2>
+          {/* claude-code-luck-platform-daily-fortune-number-demo-prompt.md §10/§12/§23: 예전
+              문구("서비스는... 만 19세 이상만 이용할 수 있도록 제한합니다")는 오늘의 행운
+              비회원 열람에도 19세 제한이 있는 것처럼 읽혔다 — 실제로는 회원가입(계정 생성)에만
+              적용되는 제한이라 범위를 정확히 나눴다. */}
           <p>
-            서비스는 회원가입 시 입력한 생년월일을 기준으로 만 19세 이상만 이용할 수 있도록
-            제한합니다.
+            카카오 회원가입(계정 생성)은 입력한 생년월일을 기준으로 만 19세 이상만 가능합니다.
+            만 14세 미만은 법정대리인 동의 절차 없이는 회원가입을 통한 개인정보 저장을
+            지원하지 않습니다.
+          </p>
+          <p>
+            오늘의 행운처럼 로그인 없이 이용할 수 있는 공개 콘텐츠는 연령 제한 없이 이용할 수
+            있습니다. 다만 실제 로또 구매는 별도로 대한민국 법령에 따라 만 19세 미만에게
+            금지되며, 이 서비스는 로또를 판매·중개하지 않습니다.
           </p>
         </section>
 

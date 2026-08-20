@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 
 import Container from "@/components/layout/Container";
 import EmptyState from "@/components/ui/EmptyState";
 import { getFaqEntries, type PublicContentEntry } from "@/lib/api/content";
 import { SITE_NAME } from "@/lib/constants";
 
-// docs/PHASE10_RELEASE_GATE.md §3/§16이 이미 확정한 대로 /faq는 단일 목록 페이지다 —
-// EXECUTION_PLAN.md Phase10 §3에 상세 라우트(예: /faq/[id])는 없다. app/dream/page.tsx와
-// 동일하게 정적 export const metadata를 쓴다(페이지 텍스트 자체는 FAQ 콘텐츠와 무관 —
-// title/description이 요청마다 달라질 이유가 없다).
+// generateMetadata()와 페이지 본문이 둘 다 같은 목록을 조회한다 — app/dream/[keyword]/page.tsx의
+// getCachedDream과 동일한 이유(Supabase 호출은 fetch()가 아니라 Next.js가 자동으로 중복 요청을
+// 합쳐주지 않음)로 React cache()로 감싼다.
+const getCachedFaqEntries = cache(getFaqEntries);
+
 const TITLE = "자주 묻는 질문";
 const DESCRIPTION = "Luck Platform 이용에 대해 자주 묻는 질문과 답변을 확인해보세요.";
 const PATH = "/faq";
@@ -16,24 +18,37 @@ const PATH = "/faq";
 // app/dream/[keyword]/page.tsx(Phase8-2)가 이미 겪은 함정(페이지가 자신의 openGraph를
 // 정의하면 app/layout.tsx의 전역 openGraph를 필드 단위로 병합하지 않고 완전히 대체한다)을
 // 반복하지 않기 위해 siteName/locale을 여기서도 다시 채운다.
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: PATH },
-  openGraph: {
+//
+// claude-code-luck-platform-fortune-domain-followup-prompt.md §18: 실제 배포본에서 FAQ가
+// 비어있는데도(EmptyState만 표시) index,follow였다 — "빈 상태를 index한 채 두지 마라"는
+// 요구에 따라 export const metadata(항상 고정값)를 generateMetadata()로 바꿔 entries가
+// 실제로 있을 때만 색인을 허용한다. supabase/migrations/0022_faq_seed.sql이 적용되기 전까지는
+// 이 조건이 자동으로 noindex를 유지하고, 적용된 뒤에는 코드 변경 없이 자동으로 색인 가능
+// 상태로 전환된다.
+export async function generateMetadata(): Promise<Metadata> {
+  const entries = await getCachedFaqEntries();
+  const hasEntries = entries.length > 0;
+
+  return {
     title: TITLE,
     description: DESCRIPTION,
-    url: PATH,
-    type: "website",
-    siteName: SITE_NAME,
-    locale: "ko_KR",
-  },
-  twitter: {
-    card: "summary",
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-};
+    alternates: { canonical: PATH },
+    robots: hasEntries ? undefined : { index: false, follow: false },
+    openGraph: {
+      title: TITLE,
+      description: DESCRIPTION,
+      url: PATH,
+      type: "website",
+      siteName: SITE_NAME,
+      locale: "ko_KR",
+    },
+    twitter: {
+      card: "summary",
+      title: TITLE,
+      description: DESCRIPTION,
+    },
+  };
+}
 
 // 실제 화면에 그대로 표시되는 질문/답변만 mainEntity에 담는다(지시문 §6) — DB에 없는 내용을
 // 만들어내지 않는다. 호출부(FaqPage)가 entries.length === 0일 때는 이 함수 자체를 호출하지
@@ -61,7 +76,7 @@ function buildFaqPageJsonLd(entries: PublicContentEntry[]): string {
 // getFaqEntries()(lib/api/content.ts, Phase10-1)를 그대로 재사용한다 — 여기서 새 Supabase
 // query를 작성하지 않는다. 정렬(display_order asc → id asc)은 그 함수의 계약을 그대로 신뢰한다.
 export default async function FaqPage() {
-  const entries = await getFaqEntries();
+  const entries = await getCachedFaqEntries();
 
   return (
     <Container className="flex flex-col gap-8 py-10">

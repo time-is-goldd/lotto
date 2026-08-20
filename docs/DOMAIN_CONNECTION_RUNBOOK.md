@@ -12,6 +12,15 @@ DNS 레코드의 실제 값(A/CNAME/TXT 등)은 Vercel이 "Add Domain" 시점에
   운영 중이며, 아래 절차를 시작하기 전까지 이 상태를 유지한다.
 - 이 런북의 어떤 단계도 **도메인을 실제로 구매한 뒤에만** 실행한다.
 
+## 현재 상태 — 임시 프로덕션 URL 확정(claude-code-luck-platform-fortune-domain-followup-prompt.md)
+
+도메인 구매 전까지는 `https://lotto-blue-sigma.vercel.app`이 실제 공개 URL이다.
+`NEXT_PUBLIC_SITE_URL`(Vercel Production 환경변수)이 정확히 이 값으로 설정되어 있는지
+확인한다 — canonical/OG/JSON-LD/robots/sitemap이 전부 `lib/utils/env.ts`의
+`getSiteUrl()` 하나에서 파생되므로(코드 변경 없음), 이 환경변수 값만 맞으면 나머지는
+자동으로 맞다. 최종 도메인을 구매하면 아래 8단계에서 이 값 하나만 `luckplatform.co.kr`로
+바꾸면 된다 — 지금은 그 단계를 실행하지 않는다.
+
 ## 순서 (반드시 이 순서대로 — §14 근거)
 
 **Domain purchase → Vercel domain/DNS → HTTPS 정상 확인 → Kakao Console 등록 →

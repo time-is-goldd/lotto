@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 
-import { generateDailyFortune } from "@/lib/logic/dailyFortune";
+import { generateDailyFortune, type FortuneGender } from "@/lib/logic/dailyFortune";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@/lib/supabase/service";
 import type { Tables } from "@/lib/types/database";
@@ -65,9 +65,11 @@ async function getTodayFortuneResult(
 async function createTodayFortuneResult(
   userId: string,
   birthDate: string,
-  resultDate: string
+  resultDate: string,
+  gender: FortuneGender | null,
+  birthTime: string | null
 ): Promise<{ entry: FortuneResultEntry; created: boolean }> {
-  const fortune = generateDailyFortune(userId, birthDate, resultDate);
+  const fortune = generateDailyFortune({ birthDate, targetDate: resultDate, gender, birthTime });
   const supabase = createServiceClient();
 
   const { data, error } = await supabase
@@ -111,7 +113,9 @@ async function createTodayFortuneResult(
 // 돌려준다(이미 존재하면 재조회만 하고 재생성하지 않음).
 export async function getOrCreateTodayFortune(
   userId: string,
-  birthDate: string
+  birthDate: string,
+  gender: FortuneGender | null = null,
+  birthTime: string | null = null
 ): Promise<DailyFortuneResult> {
   const resultDate = getKstDateString();
 
@@ -120,7 +124,13 @@ export async function getOrCreateTodayFortune(
     return { entry: existing, isNew: false };
   }
 
-  const { entry, created } = await createTodayFortuneResult(userId, birthDate, resultDate);
+  const { entry, created } = await createTodayFortuneResult(
+    userId,
+    birthDate,
+    resultDate,
+    gender,
+    birthTime
+  );
   return { entry, isNew: created };
 }
 
@@ -131,20 +141,27 @@ export interface DerivedFortuneFields {
 
 // 행운 숫자(1~3개, §11)와 금전운 지수(UX Polish Task §10~§12)는 저장 컬럼을 새로 만들지
 // 않고 화면에 보여줄 때만 파생시킨다(result_date 하나만 추가한다는 Phase10-4A §5 판단을
-// 지키기 위함). 시드가 (userId, birthDate, result_date)로 완전히 결정되므로 다시 계산해도
-// 항상 같은 값이 나온다 — 하나의 generateDailyFortune() 호출로 두 값을 함께 얻어 중복 계산을
-// 피한다(호출부가 둘 다 필요로 하므로 각각 별도 함수로 나눠 두 번 계산하지 않는다).
-// userId/birthDate는 entry에서 다시 읽지 않고, 호출자(로그인 세션을 이미 확인하고
+// 지키기 위함). 시드가 DailyFortuneInput으로 완전히 결정되므로 다시 계산해도 항상 같은 값이
+// 나온다 — 하나의 generateDailyFortune() 호출로 두 값을 함께 얻어 중복 계산을 피한다(호출부가
+// 둘 다 필요로 하므로 각각 별도 함수로 나눠 두 번 계산하지 않는다).
+// birthDate/gender/birthTime은 entry에서 다시 읽지 않고, 호출자(로그인 세션을 이미 확인하고
 // getProfile()도 이미 호출한 Route/페이지)가 신뢰할 수 있는 값을 그대로 전달한다 —
 // getOrCreateTodayFortune 호출 시 쓴 값과 항상 같아야 결과가 일치한다. Phase10-4B §E:
 // entry.input_birth_date를 다시 읽지 않도록 바꿔, 애플리케이션 코드에서 이 컬럼을 읽는
 // 유일한 지점을 제거했다(개인정보 최소 사용 — 컬럼 자체는 이번 Task에서 제거하지 않는다,
-// docs/DAILY_FORTUNE_PRIVACY_FIX_REPORT.md §11 참조).
+// docs/DAILY_FORTUNE_PRIVACY_FIX_REPORT.md §11 참조). userId는 더 이상 시드에 쓰이지 않아
+// (§7) 파라미터에서 제거했다.
 export function getDerivedFortuneFields(
   entry: Pick<FortuneResultEntry, "result_date">,
-  userId: string,
-  birthDate: string
+  birthDate: string,
+  gender: FortuneGender | null = null,
+  birthTime: string | null = null
 ): DerivedFortuneFields {
-  const fortune = generateDailyFortune(userId, birthDate, entry.result_date);
+  const fortune = generateDailyFortune({
+    birthDate,
+    targetDate: entry.result_date,
+    gender,
+    birthTime,
+  });
   return { luckyNumbers: fortune.luckyNumbers, moneyLuckScore: fortune.moneyLuckScore };
 }

@@ -84,6 +84,50 @@ export type Database = {
         };
         Relationships: [];
       };
+      daily_number_generations: {
+        Row: {
+          created_at: string;
+          dream_numbers: number[] | null;
+          generation_date: string;
+          generation_method: Database["public"]["Enums"]["user_numbers_generation_method"];
+          id: number;
+          numbers: number[];
+          related_dream_id: number | null;
+          slot_index: number;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          dream_numbers?: number[] | null;
+          generation_date: string;
+          generation_method?: Database["public"]["Enums"]["user_numbers_generation_method"];
+          id?: never;
+          numbers: number[];
+          related_dream_id?: number | null;
+          slot_index: number;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          dream_numbers?: number[] | null;
+          generation_date?: string;
+          generation_method?: Database["public"]["Enums"]["user_numbers_generation_method"];
+          id?: never;
+          numbers?: number[];
+          related_dream_id?: number | null;
+          slot_index?: number;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "daily_number_generations_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       draws: {
         Row: {
           bonus_number: number;
@@ -732,6 +776,16 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      generate_daily_number: {
+        Args: {
+          p_dream_numbers?: number[] | null;
+          p_generation_date: string;
+          p_generation_method: Database["public"]["Enums"]["user_numbers_generation_method"];
+          p_numbers: number[];
+          p_related_dream_id: number | null;
+        };
+        Returns: Database["public"]["Tables"]["daily_number_generations"]["Row"];
+      };
       is_valid_lotto_numbers: { Args: { numbers: number[] }; Returns: boolean };
       is_valid_partial_lotto_numbers: {
         Args: { numbers: number[] };

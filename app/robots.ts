@@ -10,7 +10,9 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/my/", "/login", "/onboarding", "/api/", "/ui-preview"],
+      // claude-code-luck-platform-daily-fortune-number-demo-prompt.md §22: "/demo/*"도 disallow —
+      // app/demo/layout.tsx의 robots noindex와 이중으로 검색 노출을 막는다.
+      disallow: ["/my/", "/login", "/onboarding", "/api/", "/ui-preview", "/demo/"],
     },
     sitemap: `${getSiteUrl()}/sitemap.xml`,
   };

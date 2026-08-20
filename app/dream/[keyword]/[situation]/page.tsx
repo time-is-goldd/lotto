@@ -11,6 +11,7 @@ import { getDreamSituationByKeyword, getDreamSituations } from "@/lib/api/dreamS
 import { getDreamByKeyword } from "@/lib/api/dreams";
 import { SITE_NAME } from "@/lib/constants";
 import { getSiteUrl } from "@/lib/utils/env";
+import { buildExcerpt } from "@/lib/utils/excerpt";
 
 interface DreamSituationPageProps {
   params: Promise<{ keyword: string; situation: string }>;
@@ -59,7 +60,10 @@ export async function generateMetadata({ params }: DreamSituationPageProps): Pro
   }
 
   const title = `${situation.title} 해몽 | 의미와 행운 숫자`;
-  const description = (situation.key_meaning ?? situation.body).slice(0, 100);
+  // claude-code-luck-platform-fortune-domain-followup-prompt.md §17: 기존의 고정 100자
+  // slice()는 문장 중간에서 끊길 수 있었다 — buildExcerpt()로 문장 경계를 보존한다.
+  // key_meaning은 원래 한 문장 요약이라 대개 그대로 반환되고, body 폴백에서만 실제로 잘린다.
+  const description = buildExcerpt(situation.key_meaning ?? situation.body, 100);
   const path = `/dream/${encodeURIComponent(dream.keyword)}/${encodeURIComponent(situation.keyword)}`;
 
   return {

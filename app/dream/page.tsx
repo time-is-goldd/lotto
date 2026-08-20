@@ -12,6 +12,7 @@ import { getDreamCategories, getDreams } from "@/lib/api/dreams";
 export const metadata: Metadata = {
   title: "꿈해몽",
   description: "동물, 자연, 사물 등 다양한 꿈풀이로 나만의 행운번호를 찾아보세요.",
+  alternates: { canonical: "/dream" },
 };
 
 // 완전히 공개된 콘텐츠 목록이라 getCurrentUser()를 호출하지 않는다(docs/PHASE7_PRE_IMPLEMENTATION_

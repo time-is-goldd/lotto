@@ -34,8 +34,18 @@ export async function POST() {
   }
 
   try {
-    const { entry, isNew } = await getOrCreateTodayFortune(user.id, profile.birth_date);
-    const { luckyNumbers, moneyLuckScore } = getDerivedFortuneFields(entry, user.id, profile.birth_date);
+    const { entry, isNew } = await getOrCreateTodayFortune(
+      user.id,
+      profile.birth_date,
+      profile.gender,
+      profile.birth_time
+    );
+    const { luckyNumbers, moneyLuckScore } = getDerivedFortuneFields(
+      entry,
+      profile.birth_date,
+      profile.gender,
+      profile.birth_time
+    );
 
     return NextResponse.json(
       { data: { ...entry, luckyNumbers, moneyLuckScore, isNew } },

@@ -75,7 +75,7 @@ describe("getOrCreateTodayFortune", () => {
 
     await getOrCreateTodayFortune(USER_ID, BIRTH_DATE);
 
-    const expected = generateDailyFortune(USER_ID, BIRTH_DATE, RESULT_DATE);
+    const expected = generateDailyFortune({ birthDate: BIRTH_DATE, targetDate: RESULT_DATE });
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
         overall_fortune: expected.overallFortune,
@@ -133,9 +133,9 @@ describe("getOrCreateTodayFortune", () => {
 describe("getDerivedFortuneFields", () => {
   it("returns the same luckyNumbers/moneyLuckScore that generateDailyFortune computes for the same inputs", () => {
     const entry = { result_date: RESULT_DATE } as never;
-    const expected = generateDailyFortune(USER_ID, BIRTH_DATE, RESULT_DATE);
+    const expected = generateDailyFortune({ birthDate: BIRTH_DATE, targetDate: RESULT_DATE });
 
-    expect(getDerivedFortuneFields(entry, USER_ID, BIRTH_DATE)).toEqual({
+    expect(getDerivedFortuneFields(entry, BIRTH_DATE)).toEqual({
       luckyNumbers: expected.luckyNumbers,
       moneyLuckScore: expected.moneyLuckScore,
     });
@@ -144,18 +144,26 @@ describe("getDerivedFortuneFields", () => {
   it("is deterministic across repeated calls", () => {
     const entry = { result_date: RESULT_DATE } as never;
 
-    expect(getDerivedFortuneFields(entry, USER_ID, BIRTH_DATE)).toEqual(
-      getDerivedFortuneFields(entry, USER_ID, BIRTH_DATE)
+    expect(getDerivedFortuneFields(entry, BIRTH_DATE)).toEqual(
+      getDerivedFortuneFields(entry, BIRTH_DATE)
     );
   });
 
   it("does not depend on entry.input_birth_date (parameter takes precedence)", () => {
     const entry = { result_date: RESULT_DATE, input_birth_date: "1900-01-01" } as never;
-    const expected = generateDailyFortune(USER_ID, BIRTH_DATE, RESULT_DATE);
+    const expected = generateDailyFortune({ birthDate: BIRTH_DATE, targetDate: RESULT_DATE });
 
-    expect(getDerivedFortuneFields(entry, USER_ID, BIRTH_DATE)).toEqual({
+    expect(getDerivedFortuneFields(entry, BIRTH_DATE)).toEqual({
       luckyNumbers: expected.luckyNumbers,
       moneyLuckScore: expected.moneyLuckScore,
     });
+  });
+
+  it("gender/birthTime shift the derived fields when provided", () => {
+    const entry = { result_date: RESULT_DATE } as never;
+    const withoutPersonalization = getDerivedFortuneFields(entry, BIRTH_DATE);
+    const withPersonalization = getDerivedFortuneFields(entry, BIRTH_DATE, "F", "09:15");
+
+    expect(withPersonalization).not.toEqual(withoutPersonalization);
   });
 });

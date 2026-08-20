@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import AccountWithdrawalForm from "@/components/account/AccountWithdrawalForm";
+import ProfileFortuneFieldsForm from "@/components/account/ProfileFortuneFieldsForm";
 import Container from "@/components/layout/Container";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -42,6 +43,19 @@ export default async function AccountSettingsPage() {
         <h1 className="text-h1 font-bold text-text-primary">계정 설정</h1>
         <p className="mt-2 text-body text-text-secondary">{profile.nickname}님의 계정 정보입니다.</p>
       </div>
+
+      {/* claude-code-luck-platform-fortune-domain-followup-prompt.md §11 "내 정보 수정"의 실제
+          목적지. birth_date는 수정 대상이 아니다(lib/auth/profile.ts Decision 3) — 오늘의
+          행운 개인화에 쓰이는 성별·태어난 시각만 여기서 바꿀 수 있다. */}
+      <Card className="max-w-[560px]">
+        <CardHeader>오늘의 행운 정보</CardHeader>
+        <CardContent>
+          <ProfileFortuneFieldsForm
+            initialGender={profile.gender}
+            initialBirthTime={profile.birth_time}
+          />
+        </CardContent>
+      </Card>
 
       <Card className="max-w-[560px]">
         <CardHeader>회원탈퇴</CardHeader>

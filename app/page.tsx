@@ -1,71 +1,79 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import DreamSearchInput from "@/components/dream/DreamSearchInput";
 import Container from "@/components/layout/Container";
-import Badge from "@/components/ui/Badge";
 import { buttonClassName } from "@/components/ui/Button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/Card";
-import EmptyState from "@/components/ui/EmptyState";
+import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { SITE_NAME } from "@/lib/constants";
 
 interface HomeProps {
   searchParams: Promise<{ profile?: string }>;
 }
 
+// claude-code-luck-platform-fortune-domain-followup-prompt.md §15: Home에 canonical이 아예
+// 없었다 — 다른 공개 페이지들과 동일하게 self-referencing canonical을 추가한다.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
+
 interface FeatureItem {
   title: string;
   description: string;
   href: string;
-  // GENERATE_HOME_UX_FIX Task §O가 실제 route/구현 상태를 전수 확인해 4개는 ready:true,
-  // "당첨확인"만 미구현이라 ready:false(준비 중)로 남겨뒀었다. Phase10-4C가
-  // app/my/journal/results/page.tsx를 실제 당첨확인 화면으로 완성해 이제 5개 전부
-  // ready:true다.
-  ready?: boolean;
 }
 
-// Placeholder 데이터 — 실제 기능은 이번 Task 범위 밖이다. href는 docs/SITEMAP.md가 이미
-// 확정한 실제 경로를 그대로 가리킨다 — 해당 Phase(4/5/7)가 그 페이지를 만들면 이 홈 화면은
-// 수정 없이 그대로 연결된다(이번 Task 원칙 8 "추후 기능 연결이 쉬운 구조").
+// §15 "기능 카드 순서를 꿈해몽 → 번호 생성 → 오늘의 행운 → 당첨확인 → 기록으로 조정한다".
+// 설명 문구도 실제 동작 그대로로 고쳤다 — "AI가 추천하는"은 실제 AI를 쓰지 않아 삭제했다
+// (§15, lib/logic/generateNumbers.ts는 Math.random() 기반 순수 무작위 생성).
 const FEATURES: FeatureItem[] = [
   {
-    title: "번호 생성",
-    description: "AI가 추천하는 번호로 오늘의 행운을 시작해보세요.",
-    href: "/generate",
-    ready: true,
+    title: "꿈해몽",
+    description: "궁금한 꿈을 검색해 의미와 행운 숫자를 확인해보세요.",
+    href: "/dream",
   },
   {
-    title: "꿈해몽",
-    description: "꿈풀이로 나만의 행운번호를 찾아보세요.",
-    href: "/dream",
-    ready: true,
+    title: "번호 생성",
+    description: "꿈 숫자와 무작위 숫자로 나만의 번호를 만들어보세요.",
+    href: "/generate",
   },
   {
     title: "오늘의 행운",
-    description: "생년월일로 나만의 오늘의 금전운과 추천 번호를 확인해보세요.",
+    description: "로그인 없이도 생년월일로 오늘의 운세를 바로 확인해보세요.",
     href: "/fortune",
-    ready: true,
-  },
-  {
-    title: "행운일기",
-    description: "번호와 운세, 꿈 기록을 한곳에 모아보세요.",
-    href: "/my/journal",
-    ready: true,
   },
   {
     title: "당첨확인",
-    description: "이번 회차 당첨 여부를 바로 확인해보세요.",
+    description: "저장한 번호와 이번 회차 결과를 자동으로 비교해보세요.",
     href: "/my/journal/results",
-    ready: true,
+  },
+  {
+    title: "기록",
+    description: "번호와 운세, 꿈 기록을 한곳에 모아보세요.",
+    href: "/my/journal",
   },
 ];
 
+// §15: "관리 가능한 실제 주요 꿈 링크가 있다면 많이 찾는 꿈으로 대체한다" — 조회수 등 실제
+// 인기도 추적 컬럼이 없어(dreams 테이블에 그런 컬럼 자체가 없음, supabase/migrations/0003) 임의로
+// "인기"를 지어내지 않는다. 대신 supabase/migrations/0010_seed_data.sql에 실제로 존재하는
+// Parent 키워드 중 잘 알려진 것만 골라 코드로 관리하는 정적 목록이다.
+const POPULAR_DREAM_KEYWORDS = [
+  "돼지꿈",
+  "뱀꿈",
+  "이빨 빠지는 꿈",
+  "로또 당첨되는 꿈",
+  "물에 빠지는 꿈",
+  "돈을 줍는 꿈",
+];
+
 // docs/MASTER_PRD.md §5 핵심 가치 제안 표에 이미 승인된 문구를 그대로 가져왔다 — 새 마케팅
-// 카피를 지어내지 않았다.
+// 카피를 지어내지 않았다. §15: 구현되지 않은 "연말 결산 리포트" 약속은 삭제했다.
 const VALUE_PROPS = [
   "번호를 뽑고, 운세를 보고, 그 기록이 전부 내 행운일기에 남아요",
   "글씨 크고 버튼 크고, 헷갈리지 않는 화면으로 만들었어요",
   "매주 행운일기를 열어보면 나의 행운 역사가 한눈에 보여요",
-  "1년치 행운 기록을 연말 결산 리포트로 받아볼 수 있어요",
 ];
 
 // 카카오 콜백(app/api/auth/kakao/callback/route.ts)이 profile 없는 사용자를
@@ -80,18 +88,43 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <>
-      {/* 1. Hero */}
+      {/* 1. Hero — §15 권장 문구. 꿈 검색이 가장 강한 행동이라 DreamSearchInput을 여기서도
+          재사용한다(components/dream/DreamSearchInput.tsx, 지금까지 /dream에서만 쓰였다).
+          location="home"으로 넘겨 dream_search_submitted 이벤트가 어디서 검색했는지 구분한다. */}
       <section aria-labelledby="hero-heading" className="bg-bg-base py-16">
         <Container className="flex flex-col items-center gap-4 text-center">
           <h1 id="hero-heading" className="text-display font-bold text-text-primary">
-            {SITE_NAME}
+            어젯밤 꿈, 무슨 뜻일까요?
           </h1>
           <p className="max-w-md text-body-lg text-text-secondary">
-            번호를 뽑고, 운세를 보고, 꿈을 기록하며 매주 돌아오는 행운을 경험하는 곳.
+            꿈의 의미를 확인하고, 꿈에서 얻은 행운 숫자로 이번 주 번호까지 만들어보세요.
           </p>
-          <Link href="/generate" className={buttonClassName("primary", "lg")}>
-            번호 생성하기
-          </Link>
+          <div className="w-full max-w-sm text-left">
+            <DreamSearchInput location="home" />
+          </div>
+
+          {/* §15: "검색창 아래에는 많이 찾는 꿈 4~6개를 짧은 링크로 제공" */}
+          <ul className="flex flex-wrap justify-center gap-2">
+            {POPULAR_DREAM_KEYWORDS.map((keyword) => (
+              <li key={keyword}>
+                <Link
+                  href={`/dream/${encodeURIComponent(keyword)}`}
+                  className="rounded-full border border-border px-3 py-1 text-caption text-text-secondary hover:border-primary hover:text-primary"
+                >
+                  {keyword}
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/dream" className={buttonClassName("primary", "lg")}>
+              꿈 해몽 찾기
+            </Link>
+            <Link href="/generate" className={buttonClassName("secondary", "lg")}>
+              바로 번호 생성
+            </Link>
+          </div>
         </Container>
       </section>
 
@@ -105,7 +138,8 @@ export default async function Home({ searchParams }: HomeProps) {
           어렵지만, flex-wrap은 justify-center 하나로 마지막 줄이 몇 개가 남든 자동으로
           가운데 정렬되기 때문이다(1024px 이상에서 3+2 배치 시 2번째 줄이 자동으로 가운데로
           옴). 각 카드 너비는 gap(1rem)을 감안한 calc()로 지정한다.
-          375px: 1열 / 640px~: 2열 / 1024px~: 3열(마지막 줄 자동 중앙 정렬). */}
+          375px: 1열 / 640px~: 2열 / 1024px~: 3열(마지막 줄 자동 중앙 정렬). 5개 전부
+          실제로 구현·연결되어 있어(Phase10-4C 이후) "준비 중" Badge 분기를 더 이상 쓰지 않는다. */}
       <section aria-labelledby="features-heading" className="bg-bg-subtle py-16">
         <Container>
           <h2 id="features-heading" className="text-h2 font-bold text-text-primary">
@@ -123,11 +157,6 @@ export default async function Home({ searchParams }: HomeProps) {
                       <h3 className="text-h2 font-bold text-text-primary">{feature.title}</h3>
                     </CardHeader>
                     <CardContent className="flex-1">{feature.description}</CardContent>
-                    {!feature.ready && (
-                      <CardFooter>
-                        <Badge variant="default">준비 중</Badge>
-                      </CardFooter>
-                    )}
                   </Card>
                 </Link>
               </article>
@@ -136,23 +165,10 @@ export default async function Home({ searchParams }: HomeProps) {
         </Container>
       </section>
 
-      {/* 3. 이번 주 인기 */}
-      <section aria-labelledby="popular-heading" className="bg-bg-base py-16">
-        <Container>
-          <h2 id="popular-heading" className="text-h2 font-bold text-text-primary">
-            이번 주 인기
-          </h2>
-          <Card className="mt-6">
-            <EmptyState
-              title="아직 인기 콘텐츠가 없어요"
-              description="서비스가 시작되면 이번 주 인기 번호와 꿈풀이가 여기에 표시돼요."
-            />
-          </Card>
-        </Container>
-      </section>
-
-      {/* 4. 서비스 소개 */}
-      <section aria-labelledby="why-heading" className="bg-bg-subtle py-16">
+      {/* 3. 서비스 소개 — §15: 데이터가 없는 "이번 주 인기" 빈 섹션을 제거했다(EmptyState
+          렌더링 자체를 없앰). "많이 찾는 꿈"이 Hero에서 그 역할(검색어를 몰라도 시작할 수
+          있는 진입점)을 대신한다. */}
+      <section aria-labelledby="why-heading" className="bg-bg-base py-16">
         <Container>
           <h2 id="why-heading" className="text-h2 font-bold text-text-primary">
             왜 {SITE_NAME}인가요?
@@ -170,8 +186,8 @@ export default async function Home({ searchParams }: HomeProps) {
         </Container>
       </section>
 
-      {/* 5. Footer 위 CTA */}
-      <section aria-labelledby="cta-heading" className="bg-bg-base py-16">
+      {/* 4. Footer 위 CTA */}
+      <section aria-labelledby="cta-heading" className="bg-bg-subtle py-16">
         <Container className="flex flex-col items-center gap-4 text-center">
           <h2 id="cta-heading" className="text-h2 font-bold text-text-primary">
             지금 바로 행운일기를 시작해보세요

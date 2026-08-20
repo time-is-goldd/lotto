@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 
 import NumberGenerator from "@/components/generate/NumberGenerator";
-import type { GenerateAuthState } from "@/components/generate/generatorSaveLogic";
+import type { DailyComboView, GenerateAuthState } from "@/components/generate/generatorSaveLogic";
 import Container from "@/components/layout/Container";
+import { getTodayDailyGenerations } from "@/lib/api/dailyNumbers";
 import { getDreamById, getDreamNumbers } from "@/lib/api/dreams";
 import { getDreamSituationByKeyword } from "@/lib/api/dreamSituations";
 import { getProfile } from "@/lib/auth/profile";
@@ -20,9 +21,12 @@ import { buildDreamAwareNumbers, inheritParentNumbers } from "@/lib/logic/dreamN
 // 접근되지만(app/dream/[keyword]/page.tsx의 "이 꿈으로 번호 생성하기" CTA), 그 쿼리는 서버가
 // 표시용으로만 쓰는 상태값이지(app/generate/page.tsx 자체 주석 참조) 별도 색인 대상 콘텐츠가
 // 아니다 — canonical을 쿼리 없는 경로로 고정해 검색엔진이 두 URL을 같은 페이지로 인식하게 한다.
+// claude-code-luck-platform-daily-fortune-number-demo-prompt.md §15: H1/설명을 "버튼을 눌러야
+// 만들어진다"는 실제 동작에 맞춰 갱신한다(꿈 CTA로 들어온 경우는 예외적으로 자동 시작하지만,
+// 페이지 자체의 제목은 한 페이지에 하나만 있어야 하므로 상태별로 나누지 않는다).
 export const metadata: Metadata = {
-  title: "번호 생성",
-  description: "1~45 중 서로 다른 6개의 번호를 무작위로 뽑아드려요. 당첨 확률을 보장하지 않아요.",
+  title: "오늘의 세 조합",
+  description: "하루 최대 세 조합, 1부터 45까지 중복 없는 숫자 6개로 재미로 만들어보세요.",
   alternates: { canonical: "/generate" },
 };
 
@@ -92,20 +96,44 @@ export default async function GeneratePage({ searchParams }: GeneratePageProps) 
   const dreamNumberCandidates = dream
     ? await resolveDreamNumberCandidates(dream.id, rawSituation)
     : null;
-  const { numbers: initialNumbers, dreamNumbers } = buildDreamAwareNumbers(dreamNumberCandidates);
+  // claude-code-luck-platform-home-brand-daily-numbers-prompt.md §9: 실제 6개 조합은 이제
+  // 사용자가 버튼을 누른 시점에 클라이언트(NumberGenerator)가 만든다 — 서버는 더 이상 "첫
+  // 조합"을 미리 계산해 내려주지 않는다(hydration mismatch 방지용 사전 계산이 필요했던 이유
+  // 자체가 사라졌다: 이전에는 꿈 CTA가 마운트 즉시 그 값을 그려야 했지만, 지금은 마운트 후
+  // effect에서 생성을 "시작"하므로 첫 렌더는 항상 combos=[]로 SSR과 일치한다). 여기서는
+  // dreamNumberCandidates를 정제(중복 제거·1~45 범위 검증·최대 6개)한 dreamNumbers만
+  // 뽑아 dreamContext로 넘긴다 — numbers(완성된 6개)는 버려도 된다.
+  const { dreamNumbers } = buildDreamAwareNumbers(dreamNumberCandidates);
+
+  // 회원의 "오늘의 세 조합"은 DB가 유일한 진실이다 — 비회원/profile-pending은 서버가
+  // localStorage를 볼 수 없어 항상 빈 배열로 시작하고, 클라이언트가 마운트 후 직접 채운다
+  // (components/generate/NumberGenerator.tsx의 hydrated 처리 참조).
+  const initialCombos =
+    authState === "ready" && user
+      ? (await getTodayDailyGenerations(user.id)).map((row) => ({
+          slotIndex: row.slot_index,
+          numbers: row.numbers,
+          dreamNumbers: row.dream_numbers ?? [],
+        }))
+      : [];
 
   return (
     <Container className="flex flex-col gap-8 py-10">
       <div>
-        <h1 className="text-h1 font-bold text-text-primary">번호 생성</h1>
+        <h1 className="text-h1 font-bold text-text-primary">오늘의 세 조합</h1>
         <p className="mt-2 text-body text-text-secondary">
-          1~45 중 서로 다른 6개의 번호를 무작위로 뽑아드려요. 당첨 확률을 보장하지 않아요.
+          하루에 세 조합만 만들 수 있어요. 버튼을 누를 때마다 새로운 조합이 하나씩 기록됩니다.
+        </p>
+        {/* claude-code-luck-platform-home-brand-daily-numbers-prompt.md §10 고지 문구. */}
+        <p className="mt-1 text-caption text-text-secondary">
+          번호는 재미를 위한 조합이며 당첨을 보장하거나 확률을 높이지 않습니다. 복권은 만 19세
+          이상만 구매할 수 있습니다.
         </p>
       </div>
 
       <NumberGenerator
         authState={authState}
-        initialNumbers={initialNumbers}
+        initialCombos={initialCombos as DailyComboView[]}
         dreamContext={dream ? { id: dream.id, keyword: dream.keyword, dreamNumbers } : null}
       />
     </Container>

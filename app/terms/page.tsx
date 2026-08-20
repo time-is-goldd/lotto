@@ -57,12 +57,23 @@ export default function TermsPage() {
 
         <section aria-labelledby="terms-membership-heading" className="flex flex-col gap-2">
           <h2 id="terms-membership-heading" className="text-h2 font-bold text-text-primary">
-            2. 회원가입 및 이용 자격
+            2. 이용 자격 — 공개 콘텐츠 이용과 회원가입, 복권 구매 제한은 서로 다른 기준입니다
           </h2>
+          {/* claude-code-luck-platform-daily-fortune-number-demo-prompt.md §11: "운세·꿈해몽
+              공개 콘텐츠 이용"과 "복권 구매 제한"을 별도 항목으로 구분한다. */}
           <p>
-            서비스는 카카오 계정을 통한 로그인으로 회원가입이 진행됩니다. 만 {PROFILE_MIN_AGE}세
-            미만은 서비스를 이용할 수 없으며, 가입 시 입력한 생년월일을 기준으로 이용 자격을
-            확인합니다.
+            오늘의 행운, 꿈해몽 등 로그인 없이 볼 수 있는 공개 콘텐츠는 연령 제한 없이 누구나
+            이용할 수 있습니다.
+          </p>
+          <p>
+            서비스는 카카오 계정을 통한 로그인으로 회원가입이 진행됩니다. 회원가입은 만{" "}
+            {PROFILE_MIN_AGE}세 이상만 가능하며, 가입 시 입력한 생년월일을 기준으로 이용 자격을
+            확인합니다. 만 14세 미만은 법정대리인 동의 절차 없이는 회원가입을 지원하지 않습니다.
+          </p>
+          <p>
+            서비스가 만드는 번호는 오락을 위한 조합이며 실제 복권 구매 기능이 아닙니다. 대한민국
+            법령에 따라 만 19세 미만은 실제 복권을 구매할 수 없습니다 — 이는 이 서비스의
+            회원가입 연령과 별개로, 실제 복권 판매처에 적용되는 법적 제한입니다.
           </p>
         </section>
 

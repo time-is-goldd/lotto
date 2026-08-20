@@ -14,6 +14,7 @@ import { getDreamSituations } from "@/lib/api/dreamSituations";
 import { getDreamByKeyword, getDreamNumbers } from "@/lib/api/dreams";
 import { SITE_NAME } from "@/lib/constants";
 import { getSiteUrl } from "@/lib/utils/env";
+import { buildExcerpt } from "@/lib/utils/excerpt";
 
 interface DreamDetailPageProps {
   params: Promise<{ keyword: string }>;
@@ -58,16 +59,11 @@ export async function generateMetadata({ params }: DreamDetailPageProps): Promis
   }
 
   const title = `${dream.keyword} 해몽`;
-  // Phase10-9: interpretation이 "## 소제목" 섹션 마크업을 포함할 수 있어(DreamHubContent.tsx
-  // 파서와 동일한 규칙), description에는 그 마크업 기호가 그대로 노출되면 안 된다("## 뱀꿈은..."
-  // 형태로 검색결과에 뜨는 것을 방지) — "## " 줄을 제외한 첫 문단만 골라 slice한다. 레거시
-  // 25개 Parent(헤딩 없는 한 문단)는 지금과 동일하게 그 문단 앞 100자를 그대로 쓴다.
-  const firstParagraph =
-    dream.interpretation
-      .split("\n")
-      .map((line) => line.trim())
-      .find((line) => line.length > 0 && !line.startsWith("## ")) ?? dream.interpretation;
-  const description = firstParagraph.slice(0, 100);
+  // claude-code-luck-platform-fortune-domain-followup-prompt.md §17: 기존에는 "## " 줄만
+  // 걸러내고 나머지는 100자에서 그대로 slice해, 문장 중간(예: "...돼지가 직접 다")에서 끊기는
+  // 사례가 실제 배포본에서 확인됐다. buildExcerpt()가 heading 제거 + 문장 경계 보존을 함께
+  // 처리한다 — 레거시 Parent(헤딩 없는 한 문단)에서는 기존과 동일하게 동작한다.
+  const description = buildExcerpt(dream.interpretation, 100);
   // 기존 DreamCard.tsx(components/dream/DreamCard.tsx:18)가 이미 쓰는 것과 동일한 인코딩
   // 규칙 — 이 페이지로 들어오는 실제 링크와 canonical/OG url이 항상 같은 형태를 갖는다.
   const path = `/dream/${encodeURIComponent(dream.keyword)}`;

@@ -1,24 +1,36 @@
 @import "tailwindcss";
 
 /*
- * Design Tokens — docs/DESIGN_SYSTEM.md 반영 (Phase3-1, docs/DESIGN_TOKEN_IMPLEMENTATION_REPORT.md).
- * 값은 문서에 정의된 그대로이며 임의로 바꾸지 않았다. Tailwind v4 CSS-first 방식(@theme)만
- * 쓰고 tailwind.config.ts는 만들지 않는다 — 이전에 있던 --background/--foreground(문서에
- * 근거 없는 Phase0 placeholder, 어디서도 참조되지 않음)를 문서의 정식 토큰명으로 교체했다.
+ * Design Tokens — docs/DESIGN_SYSTEM.md 반영 (Phase3-1, docs/DESIGN_TOKEN_IMPLEMENTATION_REPORT.md;
+ * v3.0 브랜드 컬러 교체는 docs/DESIGN_DIRECTION.md §4, claude-code-luck-platform-home-brand-daily-
+ * numbers-prompt.md §3.1). 값은 문서에 정의된 그대로이며 임의로 바꾸지 않았다. Tailwind v4
+ * CSS-first 방식(@theme)만 쓰고 tailwind.config.ts는 만들지 않는다 — 이전에 있던
+ * --background/--foreground(문서에 근거 없는 Phase0 placeholder, 어디서도 참조되지 않음)를
+ * 문서의 정식 토큰명으로 교체했다.
+ *
+ * v3.0: --color-primary/--color-primary-dark/--color-accent-gold는 이름은 그대로 두고 값만
+ * 블루→딥레드, #FFB800→#F4B740로 바꿨다. 이 세 토큰을 참조하는 기존 클래스(bg-primary,
+ * text-primary, border-primary, outline-primary, bg-accent-gold)가 이미 Button/Header/
+ * BottomNavigation/GlobalNav/focus-visible ring/꿈 숫자 강조 전반에 쓰이고 있어, 값 교체
+ * 하나로 브랜드 UI의 파란색이 전체 앱에서 한 번에 딥레드로 바뀐다(새 클래스 대량 치환이
+ * 아니다) — docs/DESIGN_DIRECTION.md §4 매핑표 참조.
  */
 @theme {
   /* Color — docs/DESIGN_SYSTEM.md §1.1 브랜드 컬러 */
-  --color-primary: #1b4dff;
-  --color-primary-dark: #123399;
-  --color-accent-gold: #ffb800;
+  --color-primary: #b42318;
+  --color-primary-dark: #8f1d14;
+  --color-soft-red: #fff0ed;
+  --color-accent-gold: #f4b740;
+  --color-soft-gold: #fff6d8;
   --color-kakao: #fee500;
 
   /* Color — docs/DESIGN_SYSTEM.md §1.2 기본 팔레트 */
-  --color-bg-base: #ffffff;
+  --color-bg-base: #fffdfc;
+  --color-bg-surface: #ffffff;
   --color-bg-subtle: #f7f8fa;
-  --color-text-primary: #1a1a1a;
-  --color-text-secondary: #5b5f66;
-  --color-border: #e4e6eb;
+  --color-text-primary: #18181b;
+  --color-text-secondary: #68615c;
+  --color-border: #e8e2dc;
   --color-success: #1aa260;
   --color-danger: #e0353b;
 
@@ -32,6 +44,9 @@
   --text-body: 16px;
   --text-caption: 14px;
   --text-button: 20px;
+  /* Home Hero H1 데스크톱 전용(docs/DESIGN_SYSTEM.md §2 신규 행). 모바일은 기존 --text-display를
+     그대로 쓰고 md: 브레이크포인트에서만 이 토큰으로 커진다. */
+  --text-display-desktop: 52px;
 
   /* docs/DESIGN_SYSTEM.md은 폰트 패밀리 자체를 지정하지 않는다 — docs/UI_UX_GUIDELINE.md §2
      "시스템 기본 산세리프"와 DESIGN_SYSTEM.md §2 "한글 가독성 확보"를 근거로 Tailwind v4 기본

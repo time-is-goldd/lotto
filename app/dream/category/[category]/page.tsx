@@ -33,6 +33,7 @@ export async function generateMetadata({ params }: DreamCategoryPageProps): Prom
   return {
     title: `${category} 꿈해몽`,
     description: `${category} 관련 꿈풀이 모음. 궁금한 꿈 키워드를 눌러 해몽과 추천 번호를 확인해보세요.`,
+    alternates: { canonical: `/dream/category/${encodeURIComponent(category)}` },
   };
 }
 

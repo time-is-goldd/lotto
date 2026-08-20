@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildDailyGeneratePayload,
   buildSaveRequestPayload,
-  canAutoSave,
+  canSaveNumbers,
   getRevealDelaysMs,
   getRevealDurationMs,
-  getShuffleDurationMs,
-  getTotalAnimationDurationMs,
+  REVEAL_STEP_MS,
+  toGuestDailyCombo,
   toSaveKey,
 } from "./generatorSaveLogic";
 
@@ -40,68 +41,86 @@ describe("buildSaveRequestPayload", () => {
   });
 });
 
-describe("canAutoSave", () => {
+describe("buildDailyGeneratePayload", () => {
+  it("includes an empty dreamNumbers array and no dream fields without dreamContext", () => {
+    const numbers = [1, 2, 3, 4, 5, 6];
+    expect(buildDailyGeneratePayload(numbers, [], null)).toEqual({ numbers, dreamNumbers: [] });
+  });
+
+  it("includes dreamNumbers/generationMethod/relatedDreamId when dreamContext is given", () => {
+    const numbers = [1, 2, 3, 4, 5, 6];
+    const payload = buildDailyGeneratePayload(numbers, [1, 2], {
+      id: 5,
+      keyword: "돼지꿈",
+      dreamNumbers: [1, 2],
+    });
+
+    expect(payload).toEqual({
+      numbers,
+      dreamNumbers: [1, 2],
+      generationMethod: "dream",
+      relatedDreamId: 5,
+    });
+  });
+});
+
+describe("toGuestDailyCombo", () => {
+  it("marks source as general and dreamNumbers empty without dreamContext", () => {
+    const combo = toGuestDailyCombo([1, 2, 3, 4, 5, 6], [], null, "2026-08-19T00:00:00.000Z");
+    expect(combo).toEqual({
+      numbers: [1, 2, 3, 4, 5, 6],
+      source: "general",
+      dreamNumbers: [],
+      relatedDreamId: null,
+      generatedAt: "2026-08-19T00:00:00.000Z",
+    });
+  });
+
+  it("marks source as dream and carries relatedDreamId/dreamNumbers with dreamContext", () => {
+    const combo = toGuestDailyCombo(
+      [1, 2, 3, 4, 5, 6],
+      [1, 2],
+      { id: 7, keyword: "뱀꿈", dreamNumbers: [1, 2] },
+      "2026-08-19T00:00:00.000Z"
+    );
+    expect(combo).toEqual({
+      numbers: [1, 2, 3, 4, 5, 6],
+      source: "dream",
+      dreamNumbers: [1, 2],
+      relatedDreamId: 7,
+      generatedAt: "2026-08-19T00:00:00.000Z",
+    });
+  });
+});
+
+describe("canSaveNumbers", () => {
   it("only allows saving when authState is 'ready'", () => {
-    expect(canAutoSave("ready")).toBe(true);
-    expect(canAutoSave("anonymous")).toBe(false);
-    expect(canAutoSave("profile-pending")).toBe(false);
+    expect(canSaveNumbers("ready")).toBe(true);
+    expect(canSaveNumbers("anonymous")).toBe(false);
+    expect(canSaveNumbers("profile-pending")).toBe(false);
   });
 });
 
-describe("generation reveal animation timing (PART A-1/A-2)", () => {
-  it("keeps the first-generation total within the 1.5~2.5s envelope and close to ~2s", () => {
-    const total = getTotalAnimationDurationMs(true);
-    expect(total).toBeGreaterThanOrEqual(1500);
-    expect(total).toBeLessThanOrEqual(2500);
-    expect(total).toBeCloseTo(1900, -2);
-  });
-
-  it("keeps the regenerate total within the 1~1.5s range and faster than first generation", () => {
-    const total = getTotalAnimationDurationMs(false);
-    expect(total).toBeGreaterThanOrEqual(1000);
-    expect(total).toBeLessThanOrEqual(1500);
-    expect(total).toBeLessThan(getTotalAnimationDurationMs(true));
-  });
-
-  it("never reaches the 5s hard limit regardless of first/regenerate", () => {
-    expect(getTotalAnimationDurationMs(true)).toBeLessThan(5000);
-    expect(getTotalAnimationDurationMs(false)).toBeLessThan(5000);
-  });
-
-  it("reveal duration covers exactly 6 balls at REVEAL_STEP_MS cadence", () => {
-    expect(getRevealDurationMs()).toBe(900);
-  });
-
-  it("shuffle duration is shorter for regenerate than for the first generation", () => {
-    expect(getShuffleDurationMs(false)).toBeLessThan(getShuffleDurationMs(true));
-  });
-
-  it("regeneration total stays within the 1.3~1.8s range required by GENERATE_HOME_UX_FIX", () => {
-    const total = getTotalAnimationDurationMs(false);
-    expect(total).toBeGreaterThanOrEqual(1300);
-    expect(total).toBeLessThanOrEqual(1800);
+describe("reveal animation timing (claude-code-luck-platform-home-brand-daily-numbers-prompt.md §3.5)", () => {
+  it("totals ~700ms (6 balls at REVEAL_STEP_MS cadence), never a slot-machine-length shuffle", () => {
+    const total = getRevealDurationMs();
+    expect(total).toBeGreaterThanOrEqual(600);
+    expect(total).toBeLessThanOrEqual(800);
+    expect(total).toBe(REVEAL_STEP_MS * 6);
   });
 });
 
-describe("getRevealDelaysMs (per-ball reveal schedule, §D)", () => {
+describe("getRevealDelaysMs (per-ball reveal schedule)", () => {
   it("returns exactly `count` delays", () => {
     expect(getRevealDelaysMs(6)).toHaveLength(6);
     expect(getRevealDelaysMs(3)).toHaveLength(3);
   });
 
-  it("is strictly increasing with a constant REVEAL_STEP_MS(150ms) spacing", () => {
+  it("is strictly increasing with a constant REVEAL_STEP_MS spacing", () => {
     const delays = getRevealDelaysMs(6);
-    expect(delays).toEqual([150, 300, 450, 600, 750, 900]);
     for (let i = 1; i < delays.length; i++) {
-      expect(delays[i] - delays[i - 1]).toBe(150);
+      expect(delays[i] - delays[i - 1]).toBe(REVEAL_STEP_MS);
     }
-  });
-
-  it("the per-ball cadence falls within the 100~180ms range requested by §D", () => {
-    const delays = getRevealDelaysMs(6);
-    const stepSize = delays[1] - delays[0];
-    expect(stepSize).toBeGreaterThanOrEqual(100);
-    expect(stepSize).toBeLessThanOrEqual(180);
   });
 
   it("the last delay matches getRevealDurationMs() for 6 balls", () => {
